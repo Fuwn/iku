@@ -25,6 +25,12 @@ Iku runs `go fmt` first, then applies its grammar-based blank-line rules on top 
 go install github.com/Fuwn/iku@latest
 ```
 
+Or run with Nix:
+
+```bash
+nix run github:Fuwn/iku
+```
+
 ## Usage
 
 ```bash
