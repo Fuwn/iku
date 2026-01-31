@@ -16,78 +16,78 @@ var (
 	caseLabelPattern    = regexp.MustCompile(`^\s*(case\s|default\s*:)|(^\s+.*:\s*$)`)
 )
 
-func isCommentOnly(line string) bool {
-	for index := range len(line) {
-		character := line[index]
+func isCommentOnly(sourceLine string) bool {
+	for characterIndex := range len(sourceLine) {
+		character := sourceLine[characterIndex]
 
 		if character == ' ' || character == '\t' {
 			continue
 		}
 
-		return len(line) > index+1 && line[index] == '/' && line[index+1] == '/'
+		return len(sourceLine) > characterIndex+1 && sourceLine[characterIndex] == '/' && sourceLine[characterIndex+1] == '/'
 	}
 
 	return false
 }
 
-func isPackageLine(trimmed string) bool {
-	return len(trimmed) > 8 && trimmed[:8] == "package "
+func isPackageLine(trimmedLine string) bool {
+	return len(trimmedLine) > 8 && trimmedLine[:8] == "package "
 }
 
-func countRawStringDelimiters(line string) int {
-	count := 0
-	inString := false
-	inCharacter := false
+func countRawStringDelimiters(sourceLine string) int {
+	delimiterCount := 0
+	insideDoubleQuotedString := false
+	insideCharacterLiteral := false
 
-	for index := 0; index < len(line); index++ {
-		character := line[index]
+	for characterIndex := 0; characterIndex < len(sourceLine); characterIndex++ {
+		character := sourceLine[characterIndex]
 
-		if inCharacter {
-			if character == '\\' && index+1 < len(line) {
-				index++
+		if insideCharacterLiteral {
+			if character == '\\' && characterIndex+1 < len(sourceLine) {
+				characterIndex++
 
 				continue
 			}
 
 			if character == '\'' {
-				inCharacter = false
+				insideCharacterLiteral = false
 			}
 
 			continue
 		}
 
-		if inString {
-			if character == '\\' && index+1 < len(line) {
-				index++
+		if insideDoubleQuotedString {
+			if character == '\\' && characterIndex+1 < len(sourceLine) {
+				characterIndex++
 
 				continue
 			}
 
 			if character == '"' {
-				inString = false
+				insideDoubleQuotedString = false
 			}
 
 			continue
 		}
 
 		if character == '\'' {
-			inCharacter = true
+			insideCharacterLiteral = true
 
 			continue
 		}
 
 		if character == '"' {
-			inString = true
+			insideDoubleQuotedString = true
 
 			continue
 		}
 
 		if character == '`' {
-			count++
+			delimiterCount++
 		}
 	}
 
-	return count
+	return delimiterCount
 }
 
 type CommentMode int
@@ -102,7 +102,7 @@ type Formatter struct {
 	CommentMode CommentMode
 }
 
-type lineInfo struct {
+type lineInformation struct {
 	statementType string
 	isTopLevel    bool
 	isScoped      bool
@@ -110,28 +110,28 @@ type lineInfo struct {
 }
 
 func (f *Formatter) Format(source []byte) ([]byte, error) {
-	formatted, err := format.Source(source)
+	formattedSource, err := format.Source(source)
 
 	if err != nil {
 		return nil, err
 	}
 
-	fileSet := token.NewFileSet()
-	file, err := parser.ParseFile(fileSet, "", formatted, parser.ParseComments)
+	tokenFileSet := token.NewFileSet()
+	parsedFile, err := parser.ParseFile(tokenFileSet, "", formattedSource, parser.ParseComments)
 
 	if err != nil {
 		return nil, err
 	}
 
-	lineInfoMap := f.buildLineInfo(fileSet, file)
+	lineInformationMap := f.buildLineInfo(tokenFileSet, parsedFile)
 
-	return f.rewrite(formatted, lineInfoMap), nil
+	return f.rewrite(formattedSource, lineInformationMap), nil
 }
 
-func isGenDeclScoped(genDecl *ast.GenDecl) bool {
-	for _, spec := range genDecl.Specs {
-		if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-			switch typeSpec.Type.(type) {
+func isGeneralDeclarationScoped(generalDeclaration *ast.GenDecl) bool {
+	for _, specification := range generalDeclaration.Specs {
+		if typeSpecification, isTypeSpecification := specification.(*ast.TypeSpec); isTypeSpecification {
+			switch typeSpecification.Type.(type) {
 			case *ast.StructType, *ast.InterfaceType:
 				return true
 			}
@@ -141,162 +141,162 @@ func isGenDeclScoped(genDecl *ast.GenDecl) bool {
 	return false
 }
 
-func (f *Formatter) buildLineInfo(fileSet *token.FileSet, file *ast.File) map[int]*lineInfo {
-	lineInfoMap := make(map[int]*lineInfo)
-	tokenFile := fileSet.File(file.Pos())
+func (f *Formatter) buildLineInfo(tokenFileSet *token.FileSet, parsedFile *ast.File) map[int]*lineInformation {
+	lineInformationMap := make(map[int]*lineInformation)
+	tokenFile := tokenFileSet.File(parsedFile.Pos())
 
 	if tokenFile == nil {
-		return lineInfoMap
+		return lineInformationMap
 	}
 
-	for _, declaration := range file.Decls {
+	for _, declaration := range parsedFile.Decls {
 		startLine := tokenFile.Line(declaration.Pos())
 		endLine := tokenFile.Line(declaration.End())
-		typeName := ""
+		statementType := ""
 		isScoped := false
 
-		switch declarationType := declaration.(type) {
+		switch typedDeclaration := declaration.(type) {
 		case *ast.GenDecl:
-			typeName = declarationType.Tok.String()
-			isScoped = isGenDeclScoped(declarationType)
+			statementType = typedDeclaration.Tok.String()
+			isScoped = isGeneralDeclarationScoped(typedDeclaration)
 		case *ast.FuncDecl:
-			typeName = "func"
+			statementType = "func"
 			isScoped = true
 		default:
-			typeName = reflect.TypeOf(declaration).String()
+			statementType = reflect.TypeOf(declaration).String()
 		}
 
-		lineInfoMap[startLine] = &lineInfo{statementType: typeName, isTopLevel: true, isScoped: isScoped, isStartLine: true}
-		lineInfoMap[endLine] = &lineInfo{statementType: typeName, isTopLevel: true, isScoped: isScoped, isStartLine: false}
+		lineInformationMap[startLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isStartLine: true}
+		lineInformationMap[endLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isStartLine: false}
 	}
 
-	ast.Inspect(file, func(node ast.Node) bool {
-		if node == nil {
+	ast.Inspect(parsedFile, func(astNode ast.Node) bool {
+		if astNode == nil {
 			return true
 		}
 
-		switch typedNode := node.(type) {
+		switch typedNode := astNode.(type) {
 		case *ast.BlockStmt:
-			f.processBlock(tokenFile, typedNode, lineInfoMap)
+			f.processBlock(tokenFile, typedNode, lineInformationMap)
 		case *ast.CaseClause:
-			f.processStatementList(tokenFile, typedNode.Body, lineInfoMap)
+			f.processStatementList(tokenFile, typedNode.Body, lineInformationMap)
 		case *ast.CommClause:
-			f.processStatementList(tokenFile, typedNode.Body, lineInfoMap)
+			f.processStatementList(tokenFile, typedNode.Body, lineInformationMap)
 		}
 
 		return true
 	})
 
-	return lineInfoMap
+	return lineInformationMap
 }
 
-func (f *Formatter) processBlock(tokenFile *token.File, block *ast.BlockStmt, lineInfoMap map[int]*lineInfo) {
-	if block == nil {
+func (f *Formatter) processBlock(tokenFile *token.File, blockStatement *ast.BlockStmt, lineInformationMap map[int]*lineInformation) {
+	if blockStatement == nil {
 		return
 	}
 
-	f.processStatementList(tokenFile, block.List, lineInfoMap)
+	f.processStatementList(tokenFile, blockStatement.List, lineInformationMap)
 }
 
-func (f *Formatter) processStatementList(tokenFile *token.File, statements []ast.Stmt, lineInfoMap map[int]*lineInfo) {
+func (f *Formatter) processStatementList(tokenFile *token.File, statements []ast.Stmt, lineInformationMap map[int]*lineInformation) {
 	for _, statement := range statements {
 		startLine := tokenFile.Line(statement.Pos())
 		endLine := tokenFile.Line(statement.End())
-		typeName := ""
+		statementType := ""
 		isScoped := false
 
-		switch statementType := statement.(type) {
+		switch typedStatement := statement.(type) {
 		case *ast.DeclStmt:
-			if genericDeclaration, ok := statementType.Decl.(*ast.GenDecl); ok {
-				typeName = genericDeclaration.Tok.String()
+			if generalDeclaration, isGeneralDeclaration := typedStatement.Decl.(*ast.GenDecl); isGeneralDeclaration {
+				statementType = generalDeclaration.Tok.String()
 			} else {
-				typeName = reflect.TypeOf(statement).String()
+				statementType = reflect.TypeOf(statement).String()
 			}
 		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt,
 			*ast.TypeSwitchStmt, *ast.SelectStmt, *ast.BlockStmt:
-			typeName = reflect.TypeOf(statement).String()
+			statementType = reflect.TypeOf(statement).String()
 			isScoped = true
 		default:
-			typeName = reflect.TypeOf(statement).String()
+			statementType = reflect.TypeOf(statement).String()
 		}
 
-		existingStart := lineInfoMap[startLine]
+		existingStart := lineInformationMap[startLine]
 
 		if existingStart == nil || !existingStart.isStartLine {
-			lineInfoMap[startLine] = &lineInfo{statementType: typeName, isTopLevel: false, isScoped: isScoped, isStartLine: true}
+			lineInformationMap[startLine] = &lineInformation{statementType: statementType, isTopLevel: false, isScoped: isScoped, isStartLine: true}
 		}
 
-		existingEnd := lineInfoMap[endLine]
+		existingEnd := lineInformationMap[endLine]
 
 		if existingEnd == nil || !existingEnd.isStartLine {
-			lineInfoMap[endLine] = &lineInfo{statementType: typeName, isTopLevel: false, isScoped: isScoped, isStartLine: false}
+			lineInformationMap[endLine] = &lineInformation{statementType: statementType, isTopLevel: false, isScoped: isScoped, isStartLine: false}
 		}
 
 		switch typedStatement := statement.(type) {
 		case *ast.IfStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInfoMap)
+			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
 
 			if typedStatement.Else != nil {
 				if elseBlock, isBlockStatement := typedStatement.Else.(*ast.BlockStmt); isBlockStatement {
-					f.processBlock(tokenFile, elseBlock, lineInfoMap)
+					f.processBlock(tokenFile, elseBlock, lineInformationMap)
 				} else if elseIfStatement, isIfStatement := typedStatement.Else.(*ast.IfStmt); isIfStatement {
-					f.processIfStatement(tokenFile, elseIfStatement, lineInfoMap)
+					f.processIfStatement(tokenFile, elseIfStatement, lineInformationMap)
 				}
 			}
 		case *ast.ForStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInfoMap)
+			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
 		case *ast.RangeStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInfoMap)
+			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
 		case *ast.SwitchStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInfoMap)
+			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
 		case *ast.TypeSwitchStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInfoMap)
+			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
 		case *ast.SelectStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInfoMap)
+			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
 		case *ast.BlockStmt:
-			f.processBlock(tokenFile, typedStatement, lineInfoMap)
+			f.processBlock(tokenFile, typedStatement, lineInformationMap)
 		}
 	}
 }
 
-func (f *Formatter) processIfStatement(tokenFile *token.File, ifStatement *ast.IfStmt, lineInfoMap map[int]*lineInfo) {
+func (f *Formatter) processIfStatement(tokenFile *token.File, ifStatement *ast.IfStmt, lineInformationMap map[int]*lineInformation) {
 	startLine := tokenFile.Line(ifStatement.Pos())
 	endLine := tokenFile.Line(ifStatement.End())
-	existingStart := lineInfoMap[startLine]
+	existingStart := lineInformationMap[startLine]
 
 	if existingStart == nil || !existingStart.isStartLine {
-		lineInfoMap[startLine] = &lineInfo{statementType: "*ast.IfStmt", isTopLevel: false, isScoped: true, isStartLine: true}
+		lineInformationMap[startLine] = &lineInformation{statementType: "*ast.IfStmt", isTopLevel: false, isScoped: true, isStartLine: true}
 	}
 
-	existingEnd := lineInfoMap[endLine]
+	existingEnd := lineInformationMap[endLine]
 
 	if existingEnd == nil || !existingEnd.isStartLine {
-		lineInfoMap[endLine] = &lineInfo{statementType: "*ast.IfStmt", isTopLevel: false, isScoped: true, isStartLine: false}
+		lineInformationMap[endLine] = &lineInformation{statementType: "*ast.IfStmt", isTopLevel: false, isScoped: true, isStartLine: false}
 	}
 
-	f.processBlock(tokenFile, ifStatement.Body, lineInfoMap)
+	f.processBlock(tokenFile, ifStatement.Body, lineInformationMap)
 
 	if ifStatement.Else != nil {
 		if elseBlock, isBlockStatement := ifStatement.Else.(*ast.BlockStmt); isBlockStatement {
-			f.processBlock(tokenFile, elseBlock, lineInfoMap)
+			f.processBlock(tokenFile, elseBlock, lineInformationMap)
 		} else if elseIfStatement, isIfStatement := ifStatement.Else.(*ast.IfStmt); isIfStatement {
-			f.processIfStatement(tokenFile, elseIfStatement, lineInfoMap)
+			f.processIfStatement(tokenFile, elseIfStatement, lineInformationMap)
 		}
 	}
 }
 
-func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte {
-	lines := strings.Split(string(source), "\n")
-	result := make([]string, 0, len(lines))
+func (f *Formatter) rewrite(formattedSource []byte, lineInformationMap map[int]*lineInformation) []byte {
+	sourceLines := strings.Split(string(formattedSource), "\n")
+	resultLines := make([]string, 0, len(sourceLines))
 	previousWasOpenBrace := false
-	previousType := ""
+	previousStatementType := ""
 	previousWasComment := false
 	previousWasTopLevel := false
 	previousWasScoped := false
 	insideRawString := false
 
-	for index, line := range lines {
-		backtickCount := countRawStringDelimiters(line)
+	for lineIndex, currentLine := range sourceLines {
+		backtickCount := countRawStringDelimiters(currentLine)
 		wasInsideRawString := insideRawString
 
 		if backtickCount%2 == 1 {
@@ -304,119 +304,119 @@ func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte
 		}
 
 		if wasInsideRawString {
-			result = append(result, line)
+			resultLines = append(resultLines, currentLine)
 
 			continue
 		}
 
-		lineNumber := index + 1
-		trimmed := strings.TrimSpace(line)
+		lineNumber := lineIndex + 1
+		trimmedLine := strings.TrimSpace(currentLine)
 
-		if trimmed == "" {
+		if trimmedLine == "" {
 			continue
 		}
 
-		isClosingBrace := closingBracePattern.MatchString(line)
-		isOpeningBrace := openingBracePattern.MatchString(line)
-		isCaseLabel := caseLabelPattern.MatchString(line)
-		isCommentOnlyLine := isCommentOnly(line)
-		isPackageLine := isPackageLine(trimmed)
-		info := lineInfoMap[lineNumber]
-		currentType := ""
+		isClosingBrace := closingBracePattern.MatchString(currentLine)
+		isOpeningBrace := openingBracePattern.MatchString(currentLine)
+		isCaseLabel := caseLabelPattern.MatchString(currentLine)
+		isCommentOnlyLine := isCommentOnly(currentLine)
+		isPackageDeclaration := isPackageLine(trimmedLine)
+		currentInformation := lineInformationMap[lineNumber]
+		currentStatementType := ""
 
-		if info != nil {
-			currentType = info.statementType
+		if currentInformation != nil {
+			currentStatementType = currentInformation.statementType
 		}
 
-		if isPackageLine {
-			currentType = "package"
+		if isPackageDeclaration {
+			currentStatementType = "package"
 		}
 
-		needsBlank := false
-		currentIsTopLevel := info != nil && info.isTopLevel
-		currentIsScoped := info != nil && info.isScoped
+		needsBlankLine := false
+		currentIsTopLevel := currentInformation != nil && currentInformation.isTopLevel
+		currentIsScoped := currentInformation != nil && currentInformation.isScoped
 
-		if len(result) > 0 && !previousWasOpenBrace && !isClosingBrace && !isCaseLabel {
-			if currentIsTopLevel && previousWasTopLevel && currentType != previousType {
+		if len(resultLines) > 0 && !previousWasOpenBrace && !isClosingBrace && !isCaseLabel {
+			if currentIsTopLevel && previousWasTopLevel && currentStatementType != previousStatementType {
 				if f.CommentMode == CommentsFollow && previousWasComment {
 				} else {
-					needsBlank = true
+					needsBlankLine = true
 				}
-			} else if info != nil && (currentIsScoped || previousWasScoped) {
+			} else if currentInformation != nil && (currentIsScoped || previousWasScoped) {
 				if f.CommentMode == CommentsFollow && previousWasComment {
 				} else {
-					needsBlank = true
+					needsBlankLine = true
 				}
-			} else if currentType != "" && previousType != "" && currentType != previousType {
+			} else if currentStatementType != "" && previousStatementType != "" && currentStatementType != previousStatementType {
 				if f.CommentMode == CommentsFollow && previousWasComment {
 				} else {
-					needsBlank = true
+					needsBlankLine = true
 				}
 			}
 
 			if f.CommentMode == CommentsFollow && isCommentOnlyLine && !previousWasComment {
-				nextLineNumber := f.findNextNonCommentLine(lines, index+1)
+				nextLineNumber := f.findNextNonCommentLine(sourceLines, lineIndex+1)
 
 				if nextLineNumber > 0 {
-					nextInfo := lineInfoMap[nextLineNumber]
+					nextInformation := lineInformationMap[nextLineNumber]
 
-					if nextInfo != nil {
-						nextIsTopLevel := nextInfo.isTopLevel
-						nextIsScoped := nextInfo.isScoped
+					if nextInformation != nil {
+						nextIsTopLevel := nextInformation.isTopLevel
+						nextIsScoped := nextInformation.isScoped
 
-						if nextIsTopLevel && previousWasTopLevel && nextInfo.statementType != previousType {
-							needsBlank = true
+						if nextIsTopLevel && previousWasTopLevel && nextInformation.statementType != previousStatementType {
+							needsBlankLine = true
 						} else if nextIsScoped || previousWasScoped {
-							needsBlank = true
-						} else if nextInfo.statementType != "" && previousType != "" && nextInfo.statementType != previousType {
-							needsBlank = true
+							needsBlankLine = true
+						} else if nextInformation.statementType != "" && previousStatementType != "" && nextInformation.statementType != previousStatementType {
+							needsBlankLine = true
 						}
 					}
 				}
 			}
 		}
 
-		if needsBlank {
-			result = append(result, "")
+		if needsBlankLine {
+			resultLines = append(resultLines, "")
 		}
 
-		result = append(result, line)
+		resultLines = append(resultLines, currentLine)
 		previousWasOpenBrace = isOpeningBrace || isCaseLabel
 		previousWasComment = isCommentOnlyLine
 
-		if info != nil {
-			previousType = info.statementType
-			previousWasTopLevel = info.isTopLevel
-			previousWasScoped = info.isScoped
-		} else if currentType != "" {
-			previousType = currentType
+		if currentInformation != nil {
+			previousStatementType = currentInformation.statementType
+			previousWasTopLevel = currentInformation.isTopLevel
+			previousWasScoped = currentInformation.isScoped
+		} else if currentStatementType != "" {
+			previousStatementType = currentStatementType
 			previousWasTopLevel = false
 			previousWasScoped = false
 		}
 	}
 
-	output := strings.Join(result, "\n")
+	outputString := strings.Join(resultLines, "\n")
 
-	if !strings.HasSuffix(output, "\n") {
-		output += "\n"
+	if !strings.HasSuffix(outputString, "\n") {
+		outputString += "\n"
 	}
 
-	return []byte(output)
+	return []byte(outputString)
 }
 
-func (f *Formatter) findNextNonCommentLine(lines []string, startIndex int) int {
-	for index := startIndex; index < len(lines); index++ {
-		trimmed := strings.TrimSpace(lines[index])
+func (f *Formatter) findNextNonCommentLine(sourceLines []string, startLineIndex int) int {
+	for lineIndex := startLineIndex; lineIndex < len(sourceLines); lineIndex++ {
+		trimmedLine := strings.TrimSpace(sourceLines[lineIndex])
 
-		if trimmed == "" {
+		if trimmedLine == "" {
 			continue
 		}
 
-		if isCommentOnly(lines[index]) {
+		if isCommentOnly(sourceLines[lineIndex]) {
 			continue
 		}
 
-		return index + 1
+		return lineIndex + 1
 	}
 
 	return 0

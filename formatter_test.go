@@ -4,8 +4,8 @@ import (
 	"testing"
 )
 
-func TestFormat_RemovesExtraBlankLines(t *testing.T) {
-	input := `package main
+func TestFormat_RemovesExtraBlankLines(testRunner *testing.T) {
+	inputSource := `package main
 
 func main() {
 	x := 1
@@ -14,27 +14,27 @@ func main() {
 	y := 2
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func main() {
 	x := 1
 	y := 2
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_AddsBlankLineAroundScopedStatements(t *testing.T) {
-	input := `package main
+func TestFormat_AddsBlankLineAroundScopedStatements(testRunner *testing.T) {
+	inputSource := `package main
 
 func main() {
 	x := 1
@@ -44,7 +44,7 @@ func main() {
 	z := 3
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func main() {
 	x := 1
@@ -56,20 +56,20 @@ func main() {
 	z := 3
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_NestedScopes(t *testing.T) {
-	input := `package main
+func TestFormat_NestedScopes(testRunner *testing.T) {
+	inputSource := `package main
 
 func main() {
 	if true {
@@ -81,7 +81,7 @@ func main() {
 	}
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func main() {
 	if true {
@@ -95,20 +95,20 @@ func main() {
 	}
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_ForLoop(t *testing.T) {
-	input := `package main
+func TestFormat_ForLoop(testRunner *testing.T) {
+	inputSource := `package main
 
 func main() {
 	x := 1
@@ -118,7 +118,7 @@ func main() {
 	z := 2
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func main() {
 	x := 1
@@ -130,20 +130,20 @@ func main() {
 	z := 2
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_Switch(t *testing.T) {
-	input := `package main
+func TestFormat_Switch(testRunner *testing.T) {
+	inputSource := `package main
 
 func main() {
 	x := 1
@@ -154,7 +154,7 @@ func main() {
 	z := 3
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func main() {
 	x := 1
@@ -167,20 +167,20 @@ func main() {
 	z := 3
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_MultipleFunctions(t *testing.T) {
-	input := `package main
+func TestFormat_MultipleFunctions(testRunner *testing.T) {
+	inputSource := `package main
 
 func foo() {
 	x := 1
@@ -191,7 +191,7 @@ func bar() {
 	y := 2
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func foo() {
 	x := 1
@@ -201,27 +201,27 @@ func bar() {
 	y := 2
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_TypeStruct(t *testing.T) {
-	input := `package main
+func TestFormat_TypeStruct(testRunner *testing.T) {
+	inputSource := `package main
 
 type Foo struct {
 	X int
 }
 var x = 1
 `
-	expected := `package main
+	expectedOutput := `package main
 
 type Foo struct {
 	X int
@@ -229,20 +229,20 @@ type Foo struct {
 
 var x = 1
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_DifferentStatementTypes(t *testing.T) {
-	input := `package main
+func TestFormat_DifferentStatementTypes(testRunner *testing.T) {
+	inputSource := `package main
 
 func main() {
 	x := 1
@@ -254,7 +254,7 @@ func main() {
 	return
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func main() {
 	x := 1
@@ -270,20 +270,20 @@ func main() {
 	return
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_ConsecutiveIfs(t *testing.T) {
-	input := `package main
+func TestFormat_ConsecutiveIfs(testRunner *testing.T) {
+	inputSource := `package main
 
 func main() {
 	if err != nil {
@@ -294,7 +294,7 @@ func main() {
 	}
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func main() {
 	if err != nil {
@@ -306,20 +306,20 @@ func main() {
 	}
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_CaseClauseStatements(t *testing.T) {
-	input := `package main
+func TestFormat_CaseClauseStatements(testRunner *testing.T) {
+	inputSource := `package main
 
 func main() {
 	switch x {
@@ -331,7 +331,7 @@ func main() {
 	}
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func main() {
 	switch x {
@@ -344,27 +344,27 @@ func main() {
 	}
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_DeferWithInlineFunc(t *testing.T) {
-	input := `package main
+func TestFormat_DeferWithInlineFunc(testRunner *testing.T) {
+	inputSource := `package main
 
 func main() {
 	defer func() { _ = file.Close() }()
 	fileInfo, err := file.Stat()
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func main() {
 	defer func() { _ = file.Close() }()
@@ -372,20 +372,20 @@ func main() {
 	fileInfo, err := file.Stat()
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
 
-func TestFormat_CaseClauseConsecutiveAssignments(t *testing.T) {
-	input := `package main
+func TestFormat_CaseClauseConsecutiveAssignments(testRunner *testing.T) {
+	inputSource := `package main
 
 func main() {
 	switch x {
@@ -398,7 +398,7 @@ func main() {
 	}
 }
 `
-	expected := `package main
+	expectedOutput := `package main
 
 func main() {
 	switch x {
@@ -411,14 +411,14 @@ func main() {
 	}
 }
 `
-	f := &Formatter{CommentMode: CommentsFollow}
-	result, err := f.Format([]byte(input))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+	formattedResult, err := formatter.Format([]byte(inputSource))
 
 	if err != nil {
-		t.Fatalf("Format error: %v", err)
+		testRunner.Fatalf("Format error: %v", err)
 	}
 
-	if string(result) != expected {
-		t.Errorf("got:\n%s\nwant:\n%s", result, expected)
+	if string(formattedResult) != expectedOutput {
+		testRunner.Errorf("got:\n%s\nwant:\n%s", formattedResult, expectedOutput)
 	}
 }
