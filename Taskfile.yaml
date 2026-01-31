@@ -44,7 +44,7 @@ tasks:
   bench:
     desc: Run benchmarks
     cmds:
-      - go test -bench=. ./...
+      - go test -bench=. -benchmem ./...
 
   fmt:
     desc: Format code
