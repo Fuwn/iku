@@ -31,7 +31,7 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Println("iku", version)
+		fmt.Printf("%s (%s)\n", version, runtime.Version())
 		os.Exit(0)
 	}
 
