@@ -14,9 +14,25 @@ var (
 	closingBracePattern = regexp.MustCompile(`^\s*[\}\)]`)
 	openingBracePattern = regexp.MustCompile(`[\{\(]\s*$`)
 	caseLabelPattern    = regexp.MustCompile(`^\s*(case\s+.*|default\s*):\s*$`)
-	commentOnlyPattern  = regexp.MustCompile(`^\s*//`)
-	packageLinePattern  = regexp.MustCompile(`^package\s+`)
 )
+
+func isCommentOnly(line string) bool {
+	for index := range len(line) {
+		character := line[index]
+
+		if character == ' ' || character == '\t' {
+			continue
+		}
+
+		return len(line) > index+1 && line[index] == '/' && line[index+1] == '/'
+	}
+
+	return false
+}
+
+func isPackageLine(trimmed string) bool {
+	return len(trimmed) > 8 && trimmed[:8] == "package "
+}
 
 type CommentMode int
 
@@ -181,9 +197,7 @@ func (f *Formatter) processIfStatement(tokenFile *token.File, ifStatement *ast.I
 
 func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte {
 	lines := strings.Split(string(source), "\n")
-
-	var result []string
-
+	result := make([]string, 0, len(lines))
 	previousWasOpenBrace := false
 	previousType := ""
 	previousWasComment := false
@@ -205,17 +219,16 @@ func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte
 
 		lineNumber := index + 1
 		trimmed := strings.TrimSpace(line)
-		isBlank := trimmed == ""
-		isClosingBrace := closingBracePattern.MatchString(line)
-		isOpeningBrace := openingBracePattern.MatchString(line)
-		isCaseLabel := caseLabelPattern.MatchString(line)
-		isCommentOnlyLine := commentOnlyPattern.MatchString(line)
-		isPackageLine := packageLinePattern.MatchString(trimmed)
 
-		if isBlank {
+		if trimmed == "" {
 			continue
 		}
 
+		isClosingBrace := closingBracePattern.MatchString(line)
+		isOpeningBrace := openingBracePattern.MatchString(line)
+		isCaseLabel := caseLabelPattern.MatchString(line)
+		isCommentOnlyLine := isCommentOnly(line)
+		isPackageLine := isPackageLine(trimmed)
 		info := lineInfoMap[lineNumber]
 		currentType := ""
 
@@ -305,7 +318,7 @@ func (f *Formatter) findNextNonCommentLine(lines []string, startIndex int) int {
 			continue
 		}
 
-		if commentOnlyPattern.MatchString(lines[index]) {
+		if isCommentOnly(lines[index]) {
 			continue
 		}
 
