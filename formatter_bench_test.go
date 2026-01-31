@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func BenchmarkFormat_Small(benchmarkRunner *testing.B) {
+func BenchmarkFormatSmall(b *testing.B) {
 	inputSource := []byte(`package main
 func main() {
 	x := 1
@@ -18,12 +18,12 @@ func main() {
 `)
 	formatter := &Formatter{CommentMode: CommentsFollow}
 
-	for benchmarkRunner.Loop() {
+	for b.Loop() {
 		_, _ = formatter.Format(inputSource)
 	}
 }
 
-func BenchmarkFormat_Large(benchmarkRunner *testing.B) {
+func BenchmarkFormatLarge(b *testing.B) {
 	var sourceBuilder strings.Builder
 
 	sourceBuilder.WriteString("package main\n\n")
@@ -43,7 +43,7 @@ func BenchmarkFormat_Large(benchmarkRunner *testing.B) {
 	inputSource := []byte(sourceBuilder.String())
 	formatter := &Formatter{CommentMode: CommentsFollow}
 
-	for benchmarkRunner.Loop() {
+	for b.Loop() {
 		_, _ = formatter.Format(inputSource)
 	}
 }
