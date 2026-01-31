@@ -1,6 +1,9 @@
 # 🚀 Iku
 
-> Grammar-Aware Go Formatter
+> Grammar-Aware Go Formatter: Structure through separation
+
+
+Let your code breathe!
 
 Iku is a grammar-based Go formatter that enforces consistent blank-line placement by AST node type.
 
