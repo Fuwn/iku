@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+var (
+	closingBracePattern = regexp.MustCompile(`^\s*[\}\)]`)
+	openingBracePattern = regexp.MustCompile(`[\{\(]\s*$`)
+	caseLabelPattern    = regexp.MustCompile(`^\s*(case\s+.*|default\s*):\s*$`)
+	commentOnlyPattern  = regexp.MustCompile(`^\s*//`)
+	packageLinePattern  = regexp.MustCompile(`^package\s+`)
+)
+
 type CommentMode int
 
 const (
@@ -176,11 +184,6 @@ func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte
 
 	var result []string
 
-	closingBracePattern := regexp.MustCompile(`^\s*[\}\)]`)
-	openingBracePattern := regexp.MustCompile(`[\{\(]\s*$`)
-	caseLabelPattern := regexp.MustCompile(`^\s*(case\s+.*|default\s*):\s*$`)
-	commentOnlyPattern := regexp.MustCompile(`^\s*//`)
-	packageLinePattern := regexp.MustCompile(`^package\s+`)
 	previousWasOpenBrace := false
 	previousType := ""
 	previousWasComment := false
@@ -295,8 +298,6 @@ func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte
 }
 
 func (f *Formatter) findNextNonCommentLine(lines []string, startIndex int) int {
-	commentOnlyPattern := regexp.MustCompile(`^\s*//`)
-
 	for index := startIndex; index < len(lines); index++ {
 		trimmed := strings.TrimSpace(lines[index])
 
