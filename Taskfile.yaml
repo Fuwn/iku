@@ -1,0 +1,62 @@
+version: "3"
+
+vars:
+  BINARY: iku
+
+tasks:
+  default:
+    desc: Build the application
+    cmds:
+      - task: build
+
+  build:
+    desc: Build the binary with optimisations
+    cmds:
+      - go build -ldflags="-s -w" -o {{.BINARY}} .
+    sources:
+      - ./**/*.go
+    generates:
+      - ./{{.BINARY}}
+
+  run:
+    desc: Build and run the application
+    deps: [build]
+    cmds:
+      - ./{{.BINARY}}
+
+  install:
+    desc: Install the binary to GOPATH/bin
+    deps: [build]
+    cmds:
+      - cp {{.BINARY}} ${GOPATH:-~/go}/bin/{{.BINARY}}
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -f {{.BINARY}}
+      - go clean
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test ./...
+
+  bench:
+    desc: Run benchmarks
+    cmds:
+      - go test -bench=. ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - iku -w . || go fmt ./...
+
+  lint:
+    desc: Run linter
+    cmds:
+      - golangci-lint run
+
+  dev:
+    desc: Build and run in development mode
+    cmds:
+      - go run .
