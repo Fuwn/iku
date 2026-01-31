@@ -38,7 +38,7 @@ nix run github:Fuwn/iku
 
 ```bash
 # Format stdin
-echo 'package main...' | iku
+echo 'package main ...' | iku
 
 # Format and print to stdout
 iku file.go
@@ -47,7 +47,7 @@ iku file.go
 iku -w file.go
 
 # Format entire directory
-iku -w ./...
+iku -w .
 
 # List files that need formatting
 iku -l .
