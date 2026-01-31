@@ -13,7 +13,6 @@ import (
 )
 
 var version = "dev"
-
 var (
 	writeFlag    = flag.Bool("w", false, "write result to (source) file instead of stdout")
 	listFlag     = flag.Bool("l", false, "list files whose formatting differs from iku's")

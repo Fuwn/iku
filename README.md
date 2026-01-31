@@ -5,7 +5,7 @@
 
 Let your code breathe!
 
-Iku is a grammar-based Go formatter that enforces consistent blank-line placement by AST node type.
+Iku is a grammar-based Go formatter that enforces consistent blank-line placement by statement and declaration type.
 
 ## Philosophy
 
@@ -13,10 +13,10 @@ Code structure should be visually apparent from its formatting. Iku groups state
 
 ## Rules
 
-1. **Same AST type means no blank line**: Consecutive statements of the same type stay together
-2. **Different AST type means blank line**: Transitions between statement types get visual separation
-3. **Scoped statements get blank lines**: `if`, `for`, `switch`, `select` always have blank lines before them
-4. **Top-level declarations are separated**: Functions, types, and variables at the package level get blank lines between them
+1. **Same type means no blank line**: Consecutive statements of the same type stay together
+2. **Different type means blank line**: Transitions between statement types get visual separation
+3. **Scoped constructs get blank lines**: `if`, `for`, `switch`, `select`, `func`, `type struct`, `type interface` always have blank lines around them
+4. **Declarations use token types**: `var`, `const`, `type`, `func`, `import` are distinguished by their keyword, not grouped as generic declarations
 
 ## How It Works
 
@@ -134,7 +134,10 @@ package main
 type Config struct {
     Name string
 }
+type ID int
+type Name string
 var defaultConfig = Config{}
+var x = 1
 func main() {
     run()
 }
@@ -149,7 +152,11 @@ type Config struct {
     Name string
 }
 
+type ID int
+type Name string
+
 var defaultConfig = Config{}
+var x = 1
 
 func main() {
     run()
@@ -159,6 +166,12 @@ func run() {
     process()
 }
 ```
+
+Notice how:
+- `type Config struct` is scoped (has braces), so it gets a blank line
+- `type ID int` and `type Name string` are unscoped type aliases, so they group together
+- `var defaultConfig` and `var x` are unscoped, so they group together
+- `func main()` and `func run()` are scoped, so each gets a blank line
 
 ### Switch Statements
 
