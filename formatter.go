@@ -34,6 +34,62 @@ func isPackageLine(trimmed string) bool {
 	return len(trimmed) > 8 && trimmed[:8] == "package "
 }
 
+func countRawStringDelimiters(line string) int {
+	count := 0
+	inString := false
+	inCharacter := false
+
+	for index := 0; index < len(line); index++ {
+		character := line[index]
+
+		if inCharacter {
+			if character == '\\' && index+1 < len(line) {
+				index++
+
+				continue
+			}
+
+			if character == '\'' {
+				inCharacter = false
+			}
+
+			continue
+		}
+
+		if inString {
+			if character == '\\' && index+1 < len(line) {
+				index++
+
+				continue
+			}
+
+			if character == '"' {
+				inString = false
+			}
+
+			continue
+		}
+
+		if character == '\'' {
+			inCharacter = true
+
+			continue
+		}
+
+		if character == '"' {
+			inString = true
+
+			continue
+		}
+
+		if character == '`' {
+			count++
+		}
+	}
+
+	return count
+}
+
 type CommentMode int
 
 const (
@@ -205,7 +261,7 @@ func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte
 	insideRawString := false
 
 	for index, line := range lines {
-		backtickCount := strings.Count(line, "`")
+		backtickCount := countRawStringDelimiters(line)
 		wasInsideRawString := insideRawString
 
 		if backtickCount%2 == 1 {
@@ -214,6 +270,7 @@ func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte
 
 		if wasInsideRawString {
 			result = append(result, line)
+
 			continue
 		}
 
