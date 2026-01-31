@@ -13,7 +13,7 @@ import (
 var (
 	closingBracePattern = regexp.MustCompile(`^\s*[\}\)]`)
 	openingBracePattern = regexp.MustCompile(`[\{\(]\s*$`)
-	caseLabelPattern    = regexp.MustCompile(`^\s*(case\s+.*|default\s*):\s*$`)
+	caseLabelPattern    = regexp.MustCompile(`^\s*(case\s|default\s*:)|(^\s+.*:\s*$)`)
 )
 
 func isCommentOnly(line string) bool {
@@ -128,6 +128,19 @@ func (f *Formatter) Format(source []byte) ([]byte, error) {
 	return f.rewrite(formatted, lineInfoMap), nil
 }
 
+func isGenDeclScoped(genDecl *ast.GenDecl) bool {
+	for _, spec := range genDecl.Specs {
+		if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+			switch typeSpec.Type.(type) {
+			case *ast.StructType, *ast.InterfaceType:
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func (f *Formatter) buildLineInfo(fileSet *token.FileSet, file *ast.File) map[int]*lineInfo {
 	lineInfoMap := make(map[int]*lineInfo)
 	tokenFile := fileSet.File(file.Pos())
@@ -139,9 +152,22 @@ func (f *Formatter) buildLineInfo(fileSet *token.FileSet, file *ast.File) map[in
 	for _, declaration := range file.Decls {
 		startLine := tokenFile.Line(declaration.Pos())
 		endLine := tokenFile.Line(declaration.End())
-		typeName := reflect.TypeOf(declaration).String()
-		lineInfoMap[startLine] = &lineInfo{statementType: typeName, isTopLevel: true, isStartLine: true}
-		lineInfoMap[endLine] = &lineInfo{statementType: typeName, isTopLevel: true, isStartLine: false}
+		typeName := ""
+		isScoped := false
+
+		switch declarationType := declaration.(type) {
+		case *ast.GenDecl:
+			typeName = declarationType.Tok.String()
+			isScoped = isGenDeclScoped(declarationType)
+		case *ast.FuncDecl:
+			typeName = "func"
+			isScoped = true
+		default:
+			typeName = reflect.TypeOf(declaration).String()
+		}
+
+		lineInfoMap[startLine] = &lineInfo{statementType: typeName, isTopLevel: true, isScoped: isScoped, isStartLine: true}
+		lineInfoMap[endLine] = &lineInfo{statementType: typeName, isTopLevel: true, isScoped: isScoped, isStartLine: false}
 	}
 
 	ast.Inspect(file, func(node ast.Node) bool {
@@ -176,14 +202,22 @@ func (f *Formatter) processStatementList(tokenFile *token.File, statements []ast
 	for _, statement := range statements {
 		startLine := tokenFile.Line(statement.Pos())
 		endLine := tokenFile.Line(statement.End())
-		typeName := reflect.TypeOf(statement).String()
+		typeName := ""
 		isScoped := false
 
-		switch statement.(type) {
+		switch statementType := statement.(type) {
+		case *ast.DeclStmt:
+			if genericDeclaration, ok := statementType.Decl.(*ast.GenDecl); ok {
+				typeName = genericDeclaration.Tok.String()
+			} else {
+				typeName = reflect.TypeOf(statement).String()
+			}
 		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt,
 			*ast.TypeSwitchStmt, *ast.SelectStmt, *ast.BlockStmt:
-
+			typeName = reflect.TypeOf(statement).String()
 			isScoped = true
+		default:
+			typeName = reflect.TypeOf(statement).String()
 		}
 
 		existingStart := lineInfoMap[startLine]
@@ -258,6 +292,7 @@ func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte
 	previousType := ""
 	previousWasComment := false
 	previousWasTopLevel := false
+	previousWasScoped := false
 	insideRawString := false
 
 	for index, line := range lines {
@@ -302,12 +337,12 @@ func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte
 		currentIsScoped := info != nil && info.isScoped
 
 		if len(result) > 0 && !previousWasOpenBrace && !isClosingBrace && !isCaseLabel {
-			if currentIsTopLevel && previousWasTopLevel {
+			if currentIsTopLevel && previousWasTopLevel && currentType != previousType {
 				if f.CommentMode == CommentsFollow && previousWasComment {
 				} else {
 					needsBlank = true
 				}
-			} else if currentIsScoped {
+			} else if info != nil && (currentIsScoped || previousWasScoped) {
 				if f.CommentMode == CommentsFollow && previousWasComment {
 				} else {
 					needsBlank = true
@@ -329,9 +364,9 @@ func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte
 						nextIsTopLevel := nextInfo.isTopLevel
 						nextIsScoped := nextInfo.isScoped
 
-						if nextIsTopLevel && previousWasTopLevel {
+						if nextIsTopLevel && previousWasTopLevel && nextInfo.statementType != previousType {
 							needsBlank = true
-						} else if nextIsScoped {
+						} else if nextIsScoped || previousWasScoped {
 							needsBlank = true
 						} else if nextInfo.statementType != "" && previousType != "" && nextInfo.statementType != previousType {
 							needsBlank = true
@@ -352,9 +387,11 @@ func (f *Formatter) rewrite(source []byte, lineInfoMap map[int]*lineInfo) []byte
 		if info != nil {
 			previousType = info.statementType
 			previousWasTopLevel = info.isTopLevel
+			previousWasScoped = info.isScoped
 		} else if currentType != "" {
 			previousType = currentType
 			previousWasTopLevel = false
+			previousWasScoped = false
 		}
 	}
 
