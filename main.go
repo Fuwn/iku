@@ -59,20 +59,20 @@ func main() {
 
 	exitCode := 0
 
-	for _, path := range flag.Args() {
-		switch info, err := os.Stat(path); {
+	for _, argumentPath := range flag.Args() {
+		switch fileInfo, err := os.Stat(argumentPath); {
 		case err != nil:
 			fmt.Fprintf(os.Stderr, "iku: %v\n", err)
 
 			exitCode = 1
-		case info.IsDir():
-			if err := processDir(formatter, path, &exitCode); err != nil {
+		case fileInfo.IsDir():
+			if err := processDirectory(formatter, argumentPath, &exitCode); err != nil {
 				fmt.Fprintf(os.Stderr, "iku: %v\n", err)
 
 				exitCode = 1
 			}
 		default:
-			if err := processFilePath(formatter, path, &exitCode); err != nil {
+			if err := processFilePath(formatter, argumentPath, &exitCode); err != nil {
 				fmt.Fprintf(os.Stderr, "iku: %v\n", err)
 
 				exitCode = 1
@@ -83,8 +83,8 @@ func main() {
 	os.Exit(exitCode)
 }
 
-func parseCommentMode(mode string) (CommentMode, error) {
-	switch strings.ToLower(mode) {
+func parseCommentMode(commentModeString string) (CommentMode, error) {
+	switch strings.ToLower(commentModeString) {
 	case "follow":
 		return CommentsFollow, nil
 	case "precede":
@@ -92,20 +92,20 @@ func parseCommentMode(mode string) (CommentMode, error) {
 	case "standalone":
 		return CommentsStandalone, nil
 	default:
-		return 0, fmt.Errorf("invalid comment mode: %q (use follow, precede, or standalone)", mode)
+		return 0, fmt.Errorf("invalid comment mode: %q (use follow, precede, or standalone)", commentModeString)
 	}
 }
 
-func processDir(formatter *Formatter, directory string, exitCode *int) error {
-	var files []string
+func processDirectory(formatter *Formatter, directoryPath string, exitCode *int) error {
+	var goFilePaths []string
 
-	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(directoryPath, func(currentPath string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !info.IsDir() && strings.HasSuffix(path, ".go") {
-			files = append(files, path)
+		if !fileInfo.IsDir() && strings.HasSuffix(currentPath, ".go") {
+			goFilePaths = append(goFilePaths, currentPath)
 		}
 
 		return nil
@@ -120,17 +120,17 @@ func processDir(formatter *Formatter, directory string, exitCode *int) error {
 
 	semaphore := make(chan struct{}, runtime.NumCPU())
 
-	for _, path := range files {
+	for _, filePath := range goFilePaths {
 		waitGroup.Add(1)
 
-		go func(filePath string) {
+		go func(currentFilePath string) {
 			defer waitGroup.Done()
 
 			semaphore <- struct{}{}
 
 			defer func() { <-semaphore }()
 
-			if err := processFilePath(formatter, filePath, exitCode); err != nil {
+			if err := processFilePath(formatter, currentFilePath, exitCode); err != nil {
 				mutex.Lock()
 				fmt.Fprintf(os.Stderr, "iku: %v\n", err)
 
@@ -138,7 +138,7 @@ func processDir(formatter *Formatter, directory string, exitCode *int) error {
 
 				mutex.Unlock()
 			}
-		}(path)
+		}(filePath)
 	}
 
 	waitGroup.Wait()
@@ -146,39 +146,39 @@ func processDir(formatter *Formatter, directory string, exitCode *int) error {
 	return nil
 }
 
-func processFilePath(formatter *Formatter, path string, _ *int) error {
-	file, err := os.Open(path)
+func processFilePath(formatter *Formatter, filePath string, _ *int) error {
+	sourceFile, err := os.Open(filePath)
 
 	if err != nil {
 		return err
 	}
 
-	defer func() { _ = file.Close() }()
+	defer func() { _ = sourceFile.Close() }()
 
-	var output io.Writer = os.Stdout
+	var outputDestination io.Writer = os.Stdout
 
 	if *writeFlag {
-		output = nil
+		outputDestination = nil
 	}
 
-	return processFile(formatter, path, file, output, true)
+	return processFile(formatter, filePath, sourceFile, outputDestination, true)
 }
 
-func processFile(formatter *Formatter, filename string, input io.Reader, outputWriter io.Writer, isFile bool) error {
-	source, err := io.ReadAll(input)
+func processFile(formatter *Formatter, filename string, inputReader io.Reader, outputWriter io.Writer, isFile bool) error {
+	sourceContent, err := io.ReadAll(inputReader)
 
 	if err != nil {
 		return fmt.Errorf("%s: %v", filename, err)
 	}
 
-	result, err := formatter.Format(source)
+	formattedResult, err := formatter.Format(sourceContent)
 
 	if err != nil {
 		return fmt.Errorf("%s: %v", filename, err)
 	}
 
 	if *listFlag {
-		if !bytes.Equal(source, result) {
+		if !bytes.Equal(sourceContent, formattedResult) {
 			fmt.Println(filename)
 		}
 
@@ -186,24 +186,24 @@ func processFile(formatter *Formatter, filename string, input io.Reader, outputW
 	}
 
 	if *diffFlag {
-		if !bytes.Equal(source, result) {
-			difference := unifiedDiff(filename, source, result)
-			_, _ = os.Stdout.Write(difference)
+		if !bytes.Equal(sourceContent, formattedResult) {
+			diffOutput := unifiedDiff(filename, sourceContent, formattedResult)
+			_, _ = os.Stdout.Write(diffOutput)
 		}
 
 		return nil
 	}
 
 	if *writeFlag && isFile {
-		if !bytes.Equal(source, result) {
-			return os.WriteFile(filename, result, 0644)
+		if !bytes.Equal(sourceContent, formattedResult) {
+			return os.WriteFile(filename, formattedResult, 0644)
 		}
 
 		return nil
 	}
 
 	if outputWriter != nil {
-		_, err = outputWriter.Write(result)
+		_, err = outputWriter.Write(formattedResult)
 
 		return err
 	}
@@ -211,24 +211,24 @@ func processFile(formatter *Formatter, filename string, input io.Reader, outputW
 	return nil
 }
 
-func unifiedDiff(filename string, original, formatted []byte) []byte {
-	var buffer bytes.Buffer
+func unifiedDiff(filename string, originalSource, formattedSource []byte) []byte {
+	var outputBuffer bytes.Buffer
 
-	fmt.Fprintf(&buffer, "--- %s\n", filename)
-	fmt.Fprintf(&buffer, "+++ %s\n", filename)
+	fmt.Fprintf(&outputBuffer, "--- %s\n", filename)
+	fmt.Fprintf(&outputBuffer, "+++ %s\n", filename)
 
-	originalLines := strings.Split(string(original), "\n")
-	formattedLines := strings.Split(string(formatted), "\n")
+	originalSourceLines := strings.Split(string(originalSource), "\n")
+	formattedSourceLines := strings.Split(string(formattedSource), "\n")
 
-	fmt.Fprintf(&buffer, "@@ -1,%d +1,%d @@\n", len(originalLines), len(formattedLines))
+	fmt.Fprintf(&outputBuffer, "@@ -1,%d +1,%d @@\n", len(originalSourceLines), len(formattedSourceLines))
 
-	for _, line := range originalLines {
-		fmt.Fprintf(&buffer, "-%s\n", line)
+	for _, currentLine := range originalSourceLines {
+		fmt.Fprintf(&outputBuffer, "-%s\n", currentLine)
 	}
 
-	for _, line := range formattedLines {
-		fmt.Fprintf(&buffer, "+%s\n", line)
+	for _, currentLine := range formattedSourceLines {
+		fmt.Fprintf(&outputBuffer, "+%s\n", currentLine)
 	}
 
-	return buffer.Bytes()
+	return outputBuffer.Bytes()
 }
