@@ -33,9 +33,9 @@ func (f *Formatter) rewrite(formattedSource []byte, lineInformationMap map[int]*
 			continue
 		}
 
-		isClosingBrace := closingBracePattern.MatchString(currentLine)
-		isOpeningBrace := openingBracePattern.MatchString(currentLine)
-		isCaseLabel := caseLabelPattern.MatchString(currentLine)
+		isClosingBraceLine := isClosingBrace(currentLine)
+		isOpeningBraceLine := isOpeningBrace(currentLine)
+		isCaseLabelLine := isCaseLabel(currentLine)
 		isCommentOnlyLine := isCommentOnly(currentLine)
 		isPackageDeclaration := isPackageLine(trimmedLine)
 		currentInformation := lineInformationMap[lineNumber]
@@ -53,7 +53,7 @@ func (f *Formatter) rewrite(formattedSource []byte, lineInformationMap map[int]*
 		currentIsTopLevel := currentInformation != nil && currentInformation.isTopLevel
 		currentIsScoped := currentInformation != nil && currentInformation.isScoped
 
-		if len(resultLines) > 0 && !previousWasOpenBrace && !isClosingBrace && !isCaseLabel {
+		if len(resultLines) > 0 && !previousWasOpenBrace && !isClosingBraceLine && !isCaseLabelLine {
 			if currentIsTopLevel && previousWasTopLevel && currentStatementType != previousStatementType {
 				if f.CommentMode == CommentsFollow && previousWasComment {
 				} else {
@@ -98,7 +98,7 @@ func (f *Formatter) rewrite(formattedSource []byte, lineInformationMap map[int]*
 		}
 
 		resultLines = append(resultLines, currentLine)
-		previousWasOpenBrace = isOpeningBrace || isCaseLabel
+		previousWasOpenBrace = isOpeningBraceLine || isCaseLabelLine
 		previousWasComment = isCommentOnlyLine
 
 		if currentInformation != nil {

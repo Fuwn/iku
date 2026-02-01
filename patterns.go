@@ -1,18 +1,90 @@
 package main
 
-import "regexp"
+func isWhitespace(character byte) bool {
+	return character == ' ' || character == '\t' || character == '\n' || character == '\r' || character == '\f'
+}
 
-var (
-	closingBracePattern = regexp.MustCompile(`^\s*[\}\)]`)
-	openingBracePattern = regexp.MustCompile(`[\{\(]\s*$`)
-	caseLabelPattern    = regexp.MustCompile(`^\s*(case\s|default\s*:)|(^\s+.*:\s*$)`)
-)
+func isClosingBrace(sourceLine string) bool {
+	for characterIndex := 0; characterIndex < len(sourceLine); characterIndex++ {
+		character := sourceLine[characterIndex]
+
+		if isWhitespace(character) {
+			continue
+		}
+
+		return character == '}' || character == ')'
+	}
+
+	return false
+}
+
+func isOpeningBrace(sourceLine string) bool {
+	for characterIndex := len(sourceLine) - 1; characterIndex >= 0; characterIndex-- {
+		character := sourceLine[characterIndex]
+
+		if isWhitespace(character) {
+			continue
+		}
+
+		return character == '{' || character == '('
+	}
+
+	return false
+}
+
+func isCaseLabel(sourceLine string) bool {
+	firstNonWhitespaceIndex := 0
+
+	for firstNonWhitespaceIndex < len(sourceLine) && isWhitespace(sourceLine[firstNonWhitespaceIndex]) {
+		firstNonWhitespaceIndex++
+	}
+
+	if firstNonWhitespaceIndex >= len(sourceLine) {
+		return false
+	}
+
+	contentAfterWhitespace := sourceLine[firstNonWhitespaceIndex:]
+
+	if len(contentAfterWhitespace) >= 5 && contentAfterWhitespace[:4] == "case" && isWhitespace(contentAfterWhitespace[4]) {
+		return true
+	}
+
+	if len(contentAfterWhitespace) >= 7 && contentAfterWhitespace[:7] == "default" {
+		for characterIndex := 7; characterIndex < len(contentAfterWhitespace); characterIndex++ {
+			character := contentAfterWhitespace[characterIndex]
+
+			if isWhitespace(character) {
+				continue
+			}
+
+			if character == ':' {
+				return true
+			}
+
+			break
+		}
+	}
+
+	if firstNonWhitespaceIndex > 0 {
+		lastNonWhitespaceIndex := len(sourceLine) - 1
+
+		for lastNonWhitespaceIndex >= 0 && isWhitespace(sourceLine[lastNonWhitespaceIndex]) {
+			lastNonWhitespaceIndex--
+		}
+
+		if lastNonWhitespaceIndex >= 0 && sourceLine[lastNonWhitespaceIndex] == ':' {
+			return true
+		}
+	}
+
+	return false
+}
 
 func isCommentOnly(sourceLine string) bool {
 	for characterIndex := range len(sourceLine) {
 		character := sourceLine[characterIndex]
 
-		if character == ' ' || character == '\t' {
+		if isWhitespace(character) {
 			continue
 		}
 
