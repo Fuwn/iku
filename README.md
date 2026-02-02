@@ -20,7 +20,7 @@ Code structure should be visually apparent from its formatting. Iku groups state
 
 ## How It Works
 
-Iku applies standard Go formatting (via [go/format](https://pkg.go.dev/go/format)) first ([formatter.go#L113](https://github.com/Fuwn/iku/blob/main/formatter.go#L113)), then adds its grammar-based blank-line rules on top. Your code gets `go fmt` output plus structural separation.
+Iku applies standard Go formatting (via [go/format](https://pkg.go.dev/go/format)) first ([formatter.go#29](https://github.com/Fuwn/iku/blob/main/formatter.go#L29)), then adds its grammar-based blank-line rules on top. Your code gets `go fmt` output plus structural separation.
 
 ## Installation
 
