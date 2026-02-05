@@ -96,16 +96,24 @@ func parseCommentMode(commentModeString string) (CommentMode, error) {
 	}
 }
 
+var supportedFileExtensions = map[string]bool{
+	".go":  true,
+	".js":  true,
+	".ts":  true,
+	".jsx": true,
+	".tsx": true,
+}
+
 func processDirectory(formatter *Formatter, directoryPath string, exitCode *int) error {
-	var goFilePaths []string
+	var sourceFilePaths []string
 
 	err := filepath.Walk(directoryPath, func(currentPath string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !fileInfo.IsDir() && strings.HasSuffix(currentPath, ".go") {
-			goFilePaths = append(goFilePaths, currentPath)
+		if !fileInfo.IsDir() && supportedFileExtensions[filepath.Ext(currentPath)] {
+			sourceFilePaths = append(sourceFilePaths, currentPath)
 		}
 
 		return nil
@@ -120,7 +128,7 @@ func processDirectory(formatter *Formatter, directoryPath string, exitCode *int)
 
 	semaphore := make(chan struct{}, runtime.NumCPU())
 
-	for _, filePath := range goFilePaths {
+	for _, filePath := range sourceFilePaths {
 		waitGroup.Add(1)
 
 		go func(currentFilePath string) {
@@ -171,7 +179,7 @@ func processFile(formatter *Formatter, filename string, inputReader io.Reader, o
 		return fmt.Errorf("%s: %v", filename, err)
 	}
 
-	formattedResult, err := formatter.Format(sourceContent)
+	formattedResult, err := formatter.Format(sourceContent, filename)
 
 	if err != nil {
 		return fmt.Errorf("%s: %v", filename, err)

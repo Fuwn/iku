@@ -1,6 +1,9 @@
 package main
 
-import "github.com/Fuwn/iku/engine"
+import (
+	"github.com/Fuwn/iku/engine"
+	"path/filepath"
+)
 
 type CommentMode int
 
@@ -21,9 +24,8 @@ type lineInformation struct {
 	isStartLine   bool
 }
 
-func (f *Formatter) Format(source []byte) ([]byte, error) {
-	adapter := &GoAdapter{}
-	_, events, err := adapter.Analyze(source)
+func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
+	_, events, err := analyzeSource(source, filename)
 
 	if err != nil {
 		return nil, err
@@ -32,4 +34,13 @@ func (f *Formatter) Format(source []byte) ([]byte, error) {
 	formattingEngine := &engine.Engine{CommentMode: MapCommentMode(f.CommentMode)}
 
 	return []byte(formattingEngine.FormatToString(events)), nil
+}
+
+func analyzeSource(source []byte, filename string) ([]byte, []engine.LineEvent, error) {
+	switch filepath.Ext(filename) {
+	case ".js", ".ts", ".jsx", ".tsx":
+		return (&EcmaScriptAdapter{}).Analyze(source)
+	default:
+		return (&GoAdapter{}).Analyze(source)
+	}
 }
