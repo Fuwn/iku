@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -448,8 +449,7 @@ func BenchmarkFormatLarge(b *testing.B) {
 	sourceBuilder.WriteString("package main\n\n")
 
 	for functionIndex := range 100 {
-		sourceBuilder.WriteString("func foo")
-		sourceBuilder.WriteString(string(rune('A' + functionIndex%26)))
+		fmt.Fprintf(&sourceBuilder, "func foo%d", functionIndex)
 		sourceBuilder.WriteString("() {\n")
 		sourceBuilder.WriteString("\tx := 1\n")
 		sourceBuilder.WriteString("\tif x > 0 {\n")

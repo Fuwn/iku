@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -107,12 +108,12 @@ var supportedFileExtensions = map[string]bool{
 func processDirectory(formatter *Formatter, directoryPath string, exitCode *int) error {
 	var sourceFilePaths []string
 
-	err := filepath.Walk(directoryPath, func(currentPath string, fileInfo os.FileInfo, err error) error {
+	err := filepath.WalkDir(directoryPath, func(currentPath string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !fileInfo.IsDir() && supportedFileExtensions[filepath.Ext(currentPath)] {
+		if !dirEntry.IsDir() && supportedFileExtensions[filepath.Ext(currentPath)] {
 			sourceFilePaths = append(sourceFilePaths, currentPath)
 		}
 
