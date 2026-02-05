@@ -6,7 +6,9 @@ import (
 )
 
 func formatResult(formattingEngine *Engine, events []LineEvent) string {
-	return strings.Join(formattingEngine.Format(events), "\n")
+	result := formattingEngine.FormatToString(events)
+
+	return strings.TrimSuffix(result, "\n")
 }
 
 func TestEngineCollapsesBlanks(t *testing.T) {
