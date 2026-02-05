@@ -1,10 +1,6 @@
 package main
 
-import (
-	"go/format"
-	"go/parser"
-	"go/token"
-)
+import "github.com/Fuwn/iku/engine"
 
 type CommentMode int
 
@@ -26,20 +22,14 @@ type lineInformation struct {
 }
 
 func (f *Formatter) Format(source []byte) ([]byte, error) {
-	formattedSource, err := format.Source(source)
+	adapter := &GoAdapter{}
+	_, events, err := adapter.Analyze(source)
 
 	if err != nil {
 		return nil, err
 	}
 
-	tokenFileSet := token.NewFileSet()
-	parsedFile, err := parser.ParseFile(tokenFileSet, "", formattedSource, parser.ParseComments)
+	formattingEngine := &engine.Engine{CommentMode: MapCommentMode(f.CommentMode)}
 
-	if err != nil {
-		return nil, err
-	}
-
-	lineInformationMap := f.buildLineInfo(tokenFileSet, parsedFile)
-
-	return f.rewrite(formattedSource, lineInformationMap), nil
+	return []byte(formattingEngine.FormatToString(events)), nil
 }
