@@ -14,8 +14,8 @@ type Engine struct {
 	CommentMode CommentMode
 }
 
-func (e *Engine) Format(events []LineEvent) []string {
-	resultLines := make([]string, 0, len(events))
+func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
+	hasWrittenContent := false
 	previousWasOpenBrace := false
 	previousStatementType := ""
 	previousWasComment := false
@@ -24,7 +24,13 @@ func (e *Engine) Format(events []LineEvent) []string {
 
 	for eventIndex, event := range events {
 		if event.InRawString {
-			resultLines = append(resultLines, event.Content)
+			if hasWrittenContent {
+				resultBuilder.WriteByte('\n')
+			}
+
+			resultBuilder.WriteString(event.Content)
+
+			hasWrittenContent = true
 
 			continue
 		}
@@ -43,7 +49,7 @@ func (e *Engine) Format(events []LineEvent) []string {
 		currentIsTopLevel := event.HasASTInfo && event.IsTopLevel
 		currentIsScoped := event.HasASTInfo && event.IsScoped
 
-		if len(resultLines) > 0 && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel {
+		if hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel {
 			if currentIsTopLevel && previousWasTopLevel && currentStatementType != previousStatementType {
 				if !(e.CommentMode == CommentsFollow && previousWasComment) {
 					needsBlankLine = true
@@ -62,17 +68,17 @@ func (e *Engine) Format(events []LineEvent) []string {
 				nextIndex := e.findNextNonComment(events, eventIndex+1)
 
 				if nextIndex >= 0 {
-					next := events[nextIndex]
+					nextNonCommentEvent := events[nextIndex]
 
-					if next.HasASTInfo {
-						nextIsTopLevel := next.IsTopLevel
-						nextIsScoped := next.IsScoped
+					if nextNonCommentEvent.HasASTInfo {
+						nextIsTopLevel := nextNonCommentEvent.IsTopLevel
+						nextIsScoped := nextNonCommentEvent.IsScoped
 
-						if nextIsTopLevel && previousWasTopLevel && next.StatementType != previousStatementType {
+						if nextIsTopLevel && previousWasTopLevel && nextNonCommentEvent.StatementType != previousStatementType {
 							needsBlankLine = true
 						} else if nextIsScoped || previousWasScoped {
 							needsBlankLine = true
-						} else if next.StatementType != "" && previousStatementType != "" && next.StatementType != previousStatementType {
+						} else if nextNonCommentEvent.StatementType != "" && previousStatementType != "" && nextNonCommentEvent.StatementType != previousStatementType {
 							needsBlankLine = true
 						}
 					}
@@ -81,10 +87,16 @@ func (e *Engine) Format(events []LineEvent) []string {
 		}
 
 		if needsBlankLine {
-			resultLines = append(resultLines, "")
+			resultBuilder.WriteByte('\n')
 		}
 
-		resultLines = append(resultLines, event.Content)
+		if hasWrittenContent {
+			resultBuilder.WriteByte('\n')
+		}
+
+		resultBuilder.WriteString(event.Content)
+
+		hasWrittenContent = true
 		previousWasOpenBrace = event.IsOpeningBrace || event.IsCaseLabel
 		previousWasComment = event.IsCommentOnly
 
@@ -99,21 +111,25 @@ func (e *Engine) Format(events []LineEvent) []string {
 		}
 	}
 
-	return resultLines
+	resultBuilder.WriteByte('\n')
 }
 
 func (e *Engine) FormatToString(events []LineEvent) string {
-	lines := e.Format(events)
-	lines = append(lines, "")
+	var resultBuilder strings.Builder
 
-	return strings.Join(lines, "\n")
+	resultBuilder.Grow(len(events) * 40)
+	e.format(events, &resultBuilder)
+
+	return resultBuilder.String()
 }
 
 func (e *Engine) FormatToBytes(events []LineEvent) []byte {
-	lines := e.Format(events)
-	lines = append(lines, "")
+	var resultBuilder strings.Builder
 
-	return []byte(strings.Join(lines, "\n"))
+	resultBuilder.Grow(len(events) * 40)
+	e.format(events, &resultBuilder)
+
+	return []byte(resultBuilder.String())
 }
 
 func (e *Engine) findNextNonComment(events []LineEvent, startIndex int) int {
