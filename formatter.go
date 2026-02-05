@@ -33,7 +33,7 @@ func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
 
 	formattingEngine := &engine.Engine{CommentMode: MapCommentMode(f.CommentMode)}
 
-	return []byte(formattingEngine.FormatToString(events)), nil
+	return formattingEngine.FormatToBytes(events), nil
 }
 
 func analyzeSource(source []byte, filename string) ([]byte, []engine.LineEvent, error) {
