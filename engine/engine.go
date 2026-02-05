@@ -104,13 +104,16 @@ func (e *Engine) Format(events []LineEvent) []string {
 
 func (e *Engine) FormatToString(events []LineEvent) string {
 	lines := e.Format(events)
-	output := strings.Join(lines, "\n")
+	lines = append(lines, "")
 
-	if !strings.HasSuffix(output, "\n") {
-		output += "\n"
-	}
+	return strings.Join(lines, "\n")
+}
 
-	return output
+func (e *Engine) FormatToBytes(events []LineEvent) []byte {
+	lines := e.Format(events)
+	lines = append(lines, "")
+
+	return []byte(strings.Join(lines, "\n"))
 }
 
 func (e *Engine) findNextNonComment(events []LineEvent, startIndex int) int {

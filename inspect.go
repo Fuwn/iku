@@ -1,9 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
-	"reflect"
 )
 
 func isGeneralDeclarationScoped(generalDeclaration *ast.GenDecl) bool {
@@ -20,7 +20,7 @@ func isGeneralDeclarationScoped(generalDeclaration *ast.GenDecl) bool {
 }
 
 func (f *Formatter) buildLineInfo(tokenFileSet *token.FileSet, parsedFile *ast.File) map[int]*lineInformation {
-	lineInformationMap := make(map[int]*lineInformation)
+	lineInformationMap := make(map[int]*lineInformation, 2*len(parsedFile.Decls))
 	tokenFile := tokenFileSet.File(parsedFile.Pos())
 
 	if tokenFile == nil {
@@ -41,7 +41,7 @@ func (f *Formatter) buildLineInfo(tokenFileSet *token.FileSet, parsedFile *ast.F
 			statementType = "func"
 			isScoped = true
 		default:
-			statementType = reflect.TypeOf(declaration).String()
+			statementType = fmt.Sprintf("%T", declaration)
 		}
 
 		lineInformationMap[startLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isStartLine: true}
@@ -88,14 +88,14 @@ func (f *Formatter) processStatementList(tokenFile *token.File, statements []ast
 			if generalDeclaration, isGeneralDeclaration := typedStatement.Decl.(*ast.GenDecl); isGeneralDeclaration {
 				statementType = generalDeclaration.Tok.String()
 			} else {
-				statementType = reflect.TypeOf(statement).String()
+				statementType = fmt.Sprintf("%T", statement)
 			}
 		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt,
 			*ast.TypeSwitchStmt, *ast.SelectStmt, *ast.BlockStmt:
-			statementType = reflect.TypeOf(statement).String()
+			statementType = fmt.Sprintf("%T", statement)
 			isScoped = true
 		default:
-			statementType = reflect.TypeOf(statement).String()
+			statementType = fmt.Sprintf("%T", statement)
 		}
 
 		existingStart := lineInformationMap[startLine]

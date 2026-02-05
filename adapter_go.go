@@ -1,11 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"github.com/Fuwn/iku/engine"
 	"go/format"
 	"go/parser"
 	"go/token"
-	"strings"
 )
 
 type GoAdapter struct{}
@@ -26,11 +26,12 @@ func (a *GoAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, error) {
 
 	formatter := &Formatter{}
 	lineInformationMap := formatter.buildLineInfo(tokenFileSet, parsedFile)
-	sourceLines := strings.Split(string(formattedSource), "\n")
-	events := make([]engine.LineEvent, len(sourceLines))
+	sourceByteLines := bytes.Split(formattedSource, []byte("\n"))
+	events := make([]engine.LineEvent, len(sourceByteLines))
 	insideRawString := false
 
-	for lineIndex, currentLine := range sourceLines {
+	for lineIndex, currentLineBytes := range sourceByteLines {
+		currentLine := string(currentLineBytes)
 		backtickCount := countRawStringDelimiters(currentLine)
 		wasInsideRawString := insideRawString
 
