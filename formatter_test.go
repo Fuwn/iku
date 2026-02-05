@@ -23,7 +23,7 @@ func main() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -58,7 +58,7 @@ func main() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -97,7 +97,7 @@ func main() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -132,7 +132,7 @@ func main() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -169,7 +169,7 @@ func main() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -203,7 +203,7 @@ func bar() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -231,7 +231,7 @@ type Foo struct {
 var x = 1
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -272,7 +272,7 @@ func main() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -308,7 +308,7 @@ func main() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -346,7 +346,7 @@ func main() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -374,7 +374,7 @@ func main() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -413,7 +413,7 @@ func main() {
 }
 `
 	formatter := &Formatter{CommentMode: CommentsFollow}
-	formattedResult, err := formatter.Format([]byte(inputSource))
+	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
 		t.Fatalf("Format error: %v", err)
@@ -438,7 +438,7 @@ func main() {
 	formatter := &Formatter{CommentMode: CommentsFollow}
 
 	for b.Loop() {
-		_, _ = formatter.Format(inputSource)
+		_, _ = formatter.Format(inputSource, "test.go")
 	}
 }
 
@@ -463,6 +463,6 @@ func BenchmarkFormatLarge(b *testing.B) {
 	formatter := &Formatter{CommentMode: CommentsFollow}
 
 	for b.Loop() {
-		_, _ = formatter.Format(inputSource)
+		_, _ = formatter.Format(inputSource, "test.go")
 	}
 }
