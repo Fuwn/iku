@@ -1,11 +1,11 @@
 # 🚀 Iku
 
-> Grammar-Aware Go Formatter: Structure through separation
+> Grammar-Aware Code Formatter: Structure through separation
 
 
 Let your code breathe!
 
-Iku is a grammar-based Go formatter that enforces consistent blank-line placement by statement and declaration type.
+Iku is a grammar-based formatter that enforces consistent blank-line placement by statement and declaration type. It supports Go, JavaScript, TypeScript, JSX, and TSX.
 
 ## Philosophy
 
@@ -20,7 +20,9 @@ Code structure should be visually apparent from its formatting. Iku groups state
 
 ## How It Works
 
-Iku applies standard Go formatting (via [go/format](https://pkg.go.dev/go/format)) first ([formatter.go#29](https://github.com/Fuwn/iku/blob/main/formatter.go#L29)), then adds its grammar-based blank-line rules on top. Your code gets `go fmt` output plus structural separation.
+For Go files, Iku applies standard Go formatting (via [go/format](https://pkg.go.dev/go/format)) first, then adds its grammar-based blank-line rules on top. Your code gets `go fmt` output plus structural separation.
+
+For JavaScript and TypeScript files (`.js`, `.ts`, `.jsx`, `.tsx`), Iku uses a heuristic line-based analyser that classifies statements by keyword (`function`, `class`, `if`, `for`, `try`, etc.) and applies the same blank-line rules.
 
 ## Installation
 
@@ -42,11 +44,13 @@ echo 'package main ...' | iku
 
 # Format and print to stdout
 iku file.go
+iku component.tsx
 
 # Format in-place
 iku -w file.go
+iku -w src/
 
-# Format entire directory
+# Format entire directory (Go, JS, TS, JSX, TSX)
 iku -w .
 
 # List files that need formatting
@@ -63,8 +67,45 @@ iku -d file.go
 | `-w` | Write result to file instead of stdout |
 | `-l` | List files whose formatting differs |
 | `-d` | Display diffs instead of rewriting |
-| `--comments` | Comment attachment mode: `follow`, `precede`, `standalone` |
 | `--version` | Print version |
+
+## Configuration
+
+Iku looks for `.iku.json` or `iku.json` in the current working directory.
+
+```json
+{
+  "comment_mode": "follow",
+  "group_single_line_functions": false
+}
+```
+
+All fields are optional. Omitted fields use their defaults.
+
+### `comment_mode`
+
+Controls how comments interact with blank-line insertion. Default: `"follow"`.
+
+| Mode | Behaviour |
+|------|-----------|
+| `follow` | Comments attach to the **next** statement. The blank line goes **before** the comment. |
+| `precede` | Comments attach to the **previous** statement. The blank line goes **after** the comment. |
+| `standalone` | Comments are independent. Blank lines are placed strictly by statement rules. |
+
+### `group_single_line_functions`
+
+When `true`, consecutive single-line function declarations of the same type are kept together without blank lines. Default: `false`.
+
+```go
+// group_single_line_functions = true
+func Base() string   { return baseDirectory }
+func Config() string { return configFile }
+
+// group_single_line_functions = false (default)
+func Base() string { return baseDirectory }
+
+func Config() string { return configFile }
+```
 
 ## Examples
 
