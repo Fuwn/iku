@@ -54,17 +54,17 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 
 		if hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel && !event.IsContinuation {
 			if currentIsTopLevel && previousWasTopLevel && currentStatementType != previousStatementType {
-				if !(e.CommentMode == CommentsFollow && previousWasComment) {
+				if e.CommentMode != CommentsFollow || !previousWasComment {
 					needsBlankLine = true
 				}
 			} else if event.HasASTInfo && (currentIsScoped || previousWasScoped) {
 				if e.GroupSingleLineScopes && currentIsSingleLineScope && previousWasSingleLineScope && currentStatementType == previousStatementType {
 					needsBlankLine = false
-				} else if !(e.CommentMode == CommentsFollow && previousWasComment) {
+				} else if e.CommentMode != CommentsFollow || !previousWasComment {
 					needsBlankLine = true
 				}
 			} else if currentStatementType != "" && previousStatementType != "" && currentStatementType != previousStatementType {
-				if !(e.CommentMode == CommentsFollow && previousWasComment) {
+				if e.CommentMode != CommentsFollow || !previousWasComment {
 					needsBlankLine = true
 				}
 			}

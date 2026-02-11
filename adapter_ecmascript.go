@@ -127,13 +127,8 @@ func classifyEcmaScriptStatement(trimmedLine string) (string, bool, bool) {
 		classified = classified[7:]
 	}
 
-	if strings.HasPrefix(classified, "async ") {
-		classified = classified[6:]
-	}
-
-	if strings.HasPrefix(classified, "declare ") {
-		classified = classified[8:]
-	}
+	classified = strings.TrimPrefix(classified, "async ")
+	classified = strings.TrimPrefix(classified, "declare ")
 
 	switch {
 	case ecmaScriptStatementHasPrefix(classified, "function"):
