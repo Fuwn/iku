@@ -49,7 +49,7 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 		currentIsTopLevel := event.HasASTInfo && event.IsTopLevel
 		currentIsScoped := event.HasASTInfo && event.IsScoped
 
-		if hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel {
+		if hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel && !event.IsContinuation {
 			if currentIsTopLevel && previousWasTopLevel && currentStatementType != previousStatementType {
 				if !(e.CommentMode == CommentsFollow && previousWasComment) {
 					needsBlankLine = true

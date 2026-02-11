@@ -97,12 +97,13 @@ func (a *EcmaScriptAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, 
 			continue
 		}
 
-		statementType, isScoped := classifyEcmaScriptStatement(trimmedContent)
+		statementType, isScoped, isContinuation := classifyEcmaScriptStatement(trimmedContent)
 
 		if statementType != "" {
 			event.HasASTInfo = true
 			event.StatementType = statementType
 			event.IsScoped = isScoped
+			event.IsContinuation = isContinuation
 			event.IsTopLevel = ecmaScriptLineIsTopLevel(currentLine)
 			event.IsStartLine = true
 		} else {
@@ -117,7 +118,7 @@ func (a *EcmaScriptAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, 
 	return source, events, nil
 }
 
-func classifyEcmaScriptStatement(trimmedLine string) (string, bool) {
+func classifyEcmaScriptStatement(trimmedLine string) (string, bool, bool) {
 	classified := trimmedLine
 
 	if strings.HasPrefix(classified, "export default ") {
@@ -136,50 +137,54 @@ func classifyEcmaScriptStatement(trimmedLine string) (string, bool) {
 
 	switch {
 	case ecmaScriptStatementHasPrefix(classified, "function"):
-		return "function", true
+		return "function", true, false
 	case ecmaScriptStatementHasPrefix(classified, "class"):
-		return "class", true
+		return "class", true, false
 	case ecmaScriptStatementHasPrefix(classified, "if"):
-		return "if", true
+		return "if", true, false
 	case ecmaScriptStatementHasPrefix(classified, "else"):
-		return "if", true
+		return "if", true, true
 	case ecmaScriptStatementHasPrefix(classified, "for"):
-		return "for", true
+		return "for", true, false
 	case ecmaScriptStatementHasPrefix(classified, "while"):
-		return "while", true
+		return "while", true, false
 	case ecmaScriptStatementHasPrefix(classified, "do"):
-		return "do", true
+		return "do", true, false
 	case ecmaScriptStatementHasPrefix(classified, "switch"):
-		return "switch", true
+		return "switch", true, false
 	case ecmaScriptStatementHasPrefix(classified, "try"):
-		return "try", true
+		return "try", true, false
+	case ecmaScriptStatementHasPrefix(classified, "catch"):
+		return "try", true, true
+	case ecmaScriptStatementHasPrefix(classified, "finally"):
+		return "try", true, true
 	case ecmaScriptStatementHasPrefix(classified, "interface"):
-		return "interface", true
+		return "interface", true, false
 	case ecmaScriptStatementHasPrefix(classified, "enum"):
-		return "enum", true
+		return "enum", true, false
 	case ecmaScriptStatementHasPrefix(classified, "namespace"):
-		return "namespace", true
+		return "namespace", true, false
 	case ecmaScriptStatementHasPrefix(classified, "const"):
-		return "const", false
+		return "const", false, false
 	case ecmaScriptStatementHasPrefix(classified, "let"):
-		return "let", false
+		return "let", false, false
 	case ecmaScriptStatementHasPrefix(classified, "var"):
-		return "var", false
+		return "var", false, false
 	case ecmaScriptStatementHasPrefix(classified, "import"):
-		return "import", false
+		return "import", false, false
 	case ecmaScriptStatementHasPrefix(classified, "type"):
-		return "type", false
+		return "type", false, false
 	case ecmaScriptStatementHasPrefix(classified, "return"):
-		return "return", false
+		return "return", false, false
 	case ecmaScriptStatementHasPrefix(classified, "throw"):
-		return "throw", false
+		return "throw", false, false
 	case ecmaScriptStatementHasPrefix(classified, "await"):
-		return "await", false
+		return "await", false, false
 	case ecmaScriptStatementHasPrefix(classified, "yield"):
-		return "yield", false
+		return "yield", false, false
 	}
 
-	return "", false
+	return "", false, false
 }
 
 func ecmaScriptStatementHasPrefix(line string, keyword string) bool {
