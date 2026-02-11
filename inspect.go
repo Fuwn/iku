@@ -45,7 +45,10 @@ func (f *Formatter) buildLineInfo(tokenFileSet *token.FileSet, parsedFile *ast.F
 		}
 
 		lineInformationMap[startLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isStartLine: true}
-		lineInformationMap[endLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isStartLine: false}
+
+		if endLine != startLine {
+			lineInformationMap[endLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isStartLine: false}
+		}
 	}
 
 	ast.Inspect(parsedFile, func(astNode ast.Node) bool {

@@ -15,11 +15,10 @@ import (
 
 var version = "dev"
 var (
-	writeFlag    = flag.Bool("w", false, "write result to (source) file instead of stdout")
-	listFlag     = flag.Bool("l", false, "list files whose formatting differs from iku's")
-	diffFlag     = flag.Bool("d", false, "display diffs instead of rewriting files")
-	commentsFlag = flag.String("comments", "follow", "comment attachment mode: follow, precede, standalone")
-	versionFlag  = flag.Bool("version", false, "print version")
+	writeFlag   = flag.Bool("w", false, "write result to (source) file instead of stdout")
+	listFlag    = flag.Bool("l", false, "list files whose formatting differs from iku's")
+	diffFlag    = flag.Bool("d", false, "display diffs instead of rewriting files")
+	versionFlag = flag.Bool("version", false, "print version")
 )
 
 func main() {
@@ -35,14 +34,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	commentMode, err := parseCommentMode(*commentsFlag)
+	configuration := loadConfiguration()
+	commentMode, validationError := configuration.commentMode()
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "iku: %v\n", err)
+	if validationError != nil {
+		fmt.Fprintf(os.Stderr, "iku: %v\n", validationError)
 		os.Exit(2)
 	}
 
-	formatter := &Formatter{CommentMode: commentMode}
+	formatter := &Formatter{CommentMode: commentMode, Configuration: configuration}
 
 	if flag.NArg() == 0 {
 		if *writeFlag {
@@ -82,19 +82,6 @@ func main() {
 	}
 
 	os.Exit(exitCode)
-}
-
-func parseCommentMode(commentModeString string) (CommentMode, error) {
-	switch strings.ToLower(commentModeString) {
-	case "follow":
-		return CommentsFollow, nil
-	case "precede":
-		return CommentsPrecede, nil
-	case "standalone":
-		return CommentsStandalone, nil
-	default:
-		return 0, fmt.Errorf("invalid comment mode: %q (use follow, precede, or standalone)", commentModeString)
-	}
 }
 
 var supportedFileExtensions = map[string]bool{

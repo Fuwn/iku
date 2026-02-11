@@ -11,7 +11,8 @@ const (
 )
 
 type Engine struct {
-	CommentMode CommentMode
+	CommentMode           CommentMode
+	GroupSingleLineScopes bool
 }
 
 func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
@@ -21,6 +22,7 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 	previousWasComment := false
 	previousWasTopLevel := false
 	previousWasScoped := false
+	previousWasSingleLineScope := false
 
 	for eventIndex, event := range events {
 		if event.InRawString {
@@ -48,6 +50,7 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 		needsBlankLine := false
 		currentIsTopLevel := event.HasASTInfo && event.IsTopLevel
 		currentIsScoped := event.HasASTInfo && event.IsScoped
+		currentIsSingleLineScope := currentIsScoped && !event.IsOpeningBrace && !event.IsClosingBrace
 
 		if hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel && !event.IsContinuation {
 			if currentIsTopLevel && previousWasTopLevel && currentStatementType != previousStatementType {
@@ -55,7 +58,9 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 					needsBlankLine = true
 				}
 			} else if event.HasASTInfo && (currentIsScoped || previousWasScoped) {
-				if !(e.CommentMode == CommentsFollow && previousWasComment) {
+				if e.GroupSingleLineScopes && currentIsSingleLineScope && previousWasSingleLineScope && currentStatementType == previousStatementType {
+					needsBlankLine = false
+				} else if !(e.CommentMode == CommentsFollow && previousWasComment) {
 					needsBlankLine = true
 				}
 			} else if currentStatementType != "" && previousStatementType != "" && currentStatementType != previousStatementType {
@@ -104,10 +109,12 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 			previousStatementType = event.StatementType
 			previousWasTopLevel = event.IsTopLevel
 			previousWasScoped = event.IsScoped
+			previousWasSingleLineScope = currentIsSingleLineScope
 		} else if currentStatementType != "" {
 			previousStatementType = currentStatementType
 			previousWasTopLevel = false
 			previousWasScoped = false
+			previousWasSingleLineScope = false
 		}
 	}
 

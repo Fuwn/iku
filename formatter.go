@@ -14,7 +14,8 @@ const (
 )
 
 type Formatter struct {
-	CommentMode CommentMode
+	CommentMode   CommentMode
+	Configuration Configuration
 }
 
 type lineInformation struct {
@@ -31,7 +32,10 @@ func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
 		return nil, err
 	}
 
-	formattingEngine := &engine.Engine{CommentMode: MapCommentMode(f.CommentMode)}
+	formattingEngine := &engine.Engine{
+		CommentMode:           MapCommentMode(f.CommentMode),
+		GroupSingleLineScopes: f.Configuration.GroupSingleLineFunctions,
+	}
 
 	return formattingEngine.FormatToBytes(events), nil
 }
