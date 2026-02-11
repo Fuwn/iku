@@ -411,52 +411,55 @@ func TestEcmaScriptAdapter(t *testing.T) {
 
 func TestClassifyEcmaScriptStatement(t *testing.T) {
 	cases := []struct {
-		input         string
-		expectedType  string
-		expectedScope bool
+		input                string
+		expectedType         string
+		expectedScope        bool
+		expectedContinuation bool
 	}{
-		{"function foo() {", "function", true},
-		{"async function foo() {", "function", true},
-		{"export function foo() {", "function", true},
-		{"export default function() {", "function", true},
-		{"class Foo {", "class", true},
-		{"export class Foo {", "class", true},
-		{"if (x) {", "if", true},
-		{"else if (y) {", "if", true},
-		{"else {", "if", true},
-		{"for (const x of items) {", "for", true},
-		{"while (true) {", "while", true},
-		{"do {", "do", true},
-		{"switch (x) {", "switch", true},
-		{"try {", "try", true},
-		{"interface Foo {", "interface", true},
-		{"enum Direction {", "enum", true},
-		{"namespace Foo {", "namespace", true},
-		{"const x = 1;", "const", false},
-		{"let x = 1;", "let", false},
-		{"var x = 1;", "var", false},
-		{"import { foo } from 'bar';", "import", false},
-		{"type Foo = string;", "type", false},
-		{"return x;", "return", false},
-		{"return;", "return", false},
-		{"throw new Error();", "throw", false},
-		{"await fetch(url);", "await", false},
-		{"yield value;", "yield", false},
-		{"export const x = 1;", "const", false},
-		{"export default class Foo {", "class", true},
-		{"declare const x: number;", "const", false},
-		{"declare function foo(): void;", "function", true},
-		{"foo();", "", false},
-		{"x = 1;", "", false},
-		{"", "", false},
+		{"function foo() {", "function", true, false},
+		{"async function foo() {", "function", true, false},
+		{"export function foo() {", "function", true, false},
+		{"export default function() {", "function", true, false},
+		{"class Foo {", "class", true, false},
+		{"export class Foo {", "class", true, false},
+		{"if (x) {", "if", true, false},
+		{"else if (y) {", "if", true, true},
+		{"else {", "if", true, true},
+		{"for (const x of items) {", "for", true, false},
+		{"while (true) {", "while", true, false},
+		{"do {", "do", true, false},
+		{"switch (x) {", "switch", true, false},
+		{"try {", "try", true, false},
+		{"catch (e) {", "try", true, true},
+		{"finally {", "try", true, true},
+		{"interface Foo {", "interface", true, false},
+		{"enum Direction {", "enum", true, false},
+		{"namespace Foo {", "namespace", true, false},
+		{"const x = 1;", "const", false, false},
+		{"let x = 1;", "let", false, false},
+		{"var x = 1;", "var", false, false},
+		{"import { foo } from 'bar';", "import", false, false},
+		{"type Foo = string;", "type", false, false},
+		{"return x;", "return", false, false},
+		{"return;", "return", false, false},
+		{"throw new Error();", "throw", false, false},
+		{"await fetch(url);", "await", false, false},
+		{"yield value;", "yield", false, false},
+		{"export const x = 1;", "const", false, false},
+		{"export default class Foo {", "class", true, false},
+		{"declare const x: number;", "const", false, false},
+		{"declare function foo(): void;", "function", true, false},
+		{"foo();", "", false, false},
+		{"x = 1;", "", false, false},
+		{"", "", false, false},
 	}
 
 	for _, testCase := range cases {
-		statementType, isScoped := classifyEcmaScriptStatement(testCase.input)
+		statementType, isScoped, isContinuation := classifyEcmaScriptStatement(testCase.input)
 
-		if statementType != testCase.expectedType || isScoped != testCase.expectedScope {
-			t.Errorf("classifyEcmaScriptStatement(%q) = (%q, %v), want (%q, %v)",
-				testCase.input, statementType, isScoped, testCase.expectedType, testCase.expectedScope)
+		if statementType != testCase.expectedType || isScoped != testCase.expectedScope || isContinuation != testCase.expectedContinuation {
+			t.Errorf("classifyEcmaScriptStatement(%q) = (%q, %v, %v), want (%q, %v, %v)",
+				testCase.input, statementType, isScoped, isContinuation, testCase.expectedType, testCase.expectedScope, testCase.expectedContinuation)
 		}
 	}
 }

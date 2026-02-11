@@ -13,6 +13,7 @@ type LineEvent struct {
 	IsClosingBrace bool
 	IsOpeningBrace bool
 	IsCaseLabel    bool
+	IsContinuation bool
 	IsCommentOnly  bool
 	IsBlank        bool
 	InRawString    bool
