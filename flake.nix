@@ -35,7 +35,10 @@
           meta = with pkgs.lib; {
             description = "Grammar-Aware Go Formatter";
             homepage = "https://github.com/Fuwn/iku";
-            license = licenses.gpl3Only;
+            license = [
+              licenses.mit
+              licenses.asl20
+            ];
             platforms = platforms.unix;
           };
         };
