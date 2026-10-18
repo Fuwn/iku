@@ -180,23 +180,27 @@ func TestEngineFormatToString(t *testing.T) {
 	}
 }
 
-func TestEngineFindNextNonComment(t *testing.T) {
+func TestEngineCommentModes(t *testing.T) {
 	events := []LineEvent{
-		{Content: "x", TrimmedContent: "x"},
-		{Content: "", TrimmedContent: "", IsBlank: true},
-		{Content: "// comment", TrimmedContent: "// comment", IsCommentOnly: true},
-		{Content: "y", TrimmedContent: "y"},
+		{Content: "first()", StatementType: "call", HasASTInfo: true},
+		{Content: "// Preserve the required order.", IsCommentOnly: true},
+		{Content: "second()", StatementType: "call", HasASTInfo: true},
 	}
-	formattingEngine := &Engine{}
-	index := formattingEngine.findNextNonComment(events, 1)
-
-	if index != 3 {
-		t.Errorf("expected index 3, got %d", index)
+	cases := []struct {
+		mode     CommentMode
+		expected string
+	}{
+		{CommentsFollow, "first()\n\n// Preserve the required order.\nsecond()"},
+		{CommentsPrecede, "first()\n// Preserve the required order.\n\nsecond()"},
+		{CommentsStandalone, "first()\n\n// Preserve the required order.\n\nsecond()"},
 	}
 
-	index = formattingEngine.findNextNonComment(events, 4)
+	for _, testCase := range cases {
+		formattingEngine := &Engine{CommentMode: testCase.mode}
+		result := formatResult(formattingEngine, events)
 
-	if index != -1 {
-		t.Errorf("expected -1 when past end, got %d", index)
+		if result != testCase.expected {
+			t.Errorf("mode %d: got %q; want %q", testCase.mode, result, testCase.expected)
+		}
 	}
 }

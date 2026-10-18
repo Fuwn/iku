@@ -8,8 +8,12 @@ import (
 )
 
 type Configuration struct {
-	GroupSingleLineFunctions bool   `json:"group_single_line_functions"`
-	CommentMode             string `json:"comment_mode"`
+	GroupSingleLineFunctions *bool  `json:"group_single_line_functions"`
+	CommentMode              string `json:"comment_mode"`
+}
+
+func (configuration Configuration) groupSingleLineFunctions() bool {
+	return configuration.GroupSingleLineFunctions == nil || *configuration.GroupSingleLineFunctions
 }
 
 func (configuration Configuration) commentMode() (CommentMode, error) {

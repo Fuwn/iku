@@ -13,16 +13,19 @@ Code structure should be visually apparent from its formatting. Iku groups state
 
 ## Rules
 
-1. **Same type means no blank line**: Consecutive statements of the same type stay together
-2. **Different type means blank line**: Transitions between statement types get visual separation
-3. **Scoped constructs get blank lines**: `if`, `for`, `switch`, `select`, `func`, `type struct`, `type interface` always have blank lines around them
-4. **Declarations use token types**: `var`, `const`, `type`, `func`, `import` are distinguished by their keyword, not grouped as generic declarations
+1. **Same kind means no blank line**: Consecutive bindings, calls, or assignments stay together.
+2. **Different kinds get one blank line**: Bindings, assignments, calls, type declarations, imports, returns, and other grammatical roles are distinct.
+3. **Bindings share a kind**: Go short declarations and explicit `var`/`const` declarations group together. JavaScript and TypeScript `const`, `let`, and `var` declarations also group together, including declaration modifiers.
+4. **Multiline bodies get separation**: Control-flow bodies, functions, and type bodies get blank lines around them, without blank lines at the beginning or end of an enclosing block. Multiline initialisers alone do not count as bodies.
+5. **Outer statements determine grouping**: Consecutive bindings inside a block stay together even when their values contain bodies. At top level, bindings containing multiline bodies get separation. Consecutive calls stay together even when they contain multiline callbacks.
+6. **Comments attach to the following statement by default**: A comment group gets a blank line before it and none between it and the statement, except at the start of an enclosing block. Other attachment modes are configurable.
+7. **Single-line definitions may cluster**: Consecutive single-line function and scoped type definitions group by default. This can be disabled in configuration.
 
 ## How It Works
 
-For Go files, Iku applies standard Go formatting (via [go/format](https://pkg.go.dev/go/format)) first, then adds its grammar-based blank-line rules on top. Your code gets `go fmt` output plus structural separation.
+For Go files, Iku applies standard Go formatting (via [go/format](https://pkg.go.dev/go/format)), classifies grammatical roles through the AST, and applies its blank-line rules. Layout changes involving joined groups, single-line definitions, or comments receive another Go-formatting pass to keep alignment and required build-tag separators intact.
 
-For JavaScript and TypeScript files (`.js`, `.ts`, `.jsx`, `.tsx`), Iku uses a heuristic line-based analyser that classifies statements by keyword (`function`, `class`, `if`, `for`, `try`, etc.) and applies the same blank-line rules.
+For JavaScript and TypeScript files (`.js`, `.ts`, `.jsx`, `.tsx`), Iku uses a heuristic line-based analyser that distinguishes declarations, assignments, and calls, and tracks delimiters and bodies. Strings, template literals, comments, and regular-expression literals are excluded from structural classification. This is not a complete JavaScript or TypeScript syntax parser.
 
 ## Installation
 
@@ -76,7 +79,7 @@ Iku looks for `.iku.json` or `iku.json` in the current working directory.
 ```json
 {
   "comment_mode": "follow",
-  "group_single_line_functions": false
+  "group_single_line_functions": true
 }
 ```
 
@@ -94,14 +97,14 @@ Controls how comments interact with blank-line insertion. Default: `"follow"`.
 
 ### `group_single_line_functions`
 
-When `true`, consecutive single-line function declarations of the same type are kept together without blank lines. Default: `false`.
+When `true`, consecutive single-line function and scoped type definitions of the same kind are kept together without blank lines. Default: `true`. Set it to `false` to separate those definitions. Go output retains standard column alignment after regrouping.
 
 ```go
-// group_single_line_functions = true
+// group_single_line_functions = true (default)
 func Base() string   { return baseDirectory }
 func Config() string { return configFile }
 
-// group_single_line_functions = false (default)
+// group_single_line_functions = false
 func Base() string { return baseDirectory }
 
 func Config() string { return configFile }
@@ -139,7 +142,6 @@ package main
 func main() {
     x := 1
     y := 2
-
     var config = loadConfig()
 
     defer cleanup()
@@ -160,8 +162,8 @@ func main() {
 ```
 
 Notice how:
-- `x := 1` and `y := 2` (both `AssignStmt`) stay together
-- `var config` (`DeclStmt`) gets separated from assignments
+- `x := 1`, `y := 2`, and `var config` stay together because all three declare bindings
+- Reassignments such as `x = 2` have a different role from binding declarations
 - `defer` statements stay grouped together
 - Each `if` statement gets a blank line before it (scoped statement)
 - `go worker()` (`GoStmt`) is separated from the `if` above
@@ -251,24 +253,25 @@ func process(x int) {
 }
 ```
 
-## AST Node Types
+## Grammatical Roles
 
-For reference, here are common Go statement types that Iku distinguishes:
+Go AST node types inform classification, but do not determine grouping alone:
 
-| Type | Examples |
+| Role | Examples |
 |------|----------|
-| `*ast.AssignStmt` | `x := 1`, `x = 2` |
-| `*ast.DeclStmt` | `var x = 1` |
-| `*ast.ExprStmt` | `fmt.Println()`, `doSomething()` |
-| `*ast.ReturnStmt` | `return x` |
-| `*ast.IfStmt` | `if x > 0 { }` |
-| `*ast.ForStmt` | `for i := 0; i < n; i++ { }` |
-| `*ast.RangeStmt` | `for k, v := range m { }` |
-| `*ast.SwitchStmt` | `switch x { }` |
-| `*ast.SelectStmt` | `select { }` |
-| `*ast.DeferStmt` | `defer f()` |
-| `*ast.GoStmt` | `go f()` |
-| `*ast.SendStmt` | `ch <- x` |
+| Binding | `count := 1`, `var count = 1`, `const limit = 10` |
+| Assignment | `count = 2`, `count += 1` |
+| Call | `fmt.Println()`, `doSomething()` |
+| Type Declaration | `type Count int`, `type Config struct { ... }` |
+| Return | `return count` |
+| Scoped Control Flow | `if`, `for`, `switch`, `select` |
+| Deferred Call | `defer closeFile()` |
+| Goroutine Launch | `go worker()` |
+| Channel Send | `channel <- value` |
+
+In particular, `*ast.AssignStmt` represents both short declarations and
+reassignments; Iku uses its token to distinguish those roles. Composite-literal
+braces do not make a binding scoped, but a multiline function or type body does.
 
 ## License
 

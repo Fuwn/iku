@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"github.com/Fuwn/iku/engine"
+	"go/format"
 	"path/filepath"
 )
 
@@ -19,14 +21,15 @@ type Formatter struct {
 }
 
 type lineInformation struct {
-	statementType string
-	isTopLevel    bool
-	isScoped      bool
-	isStartLine   bool
+	statementType     string
+	isTopLevel        bool
+	isScoped          bool
+	isSingleLineScope bool
+	isStartLine       bool
 }
 
 func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
-	_, events, err := analyzeSource(source, filename)
+	normalizedSource, events, err := analyzeSource(source, filename)
 
 	if err != nil {
 		return nil, err
@@ -34,10 +37,54 @@ func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
 
 	formattingEngine := &engine.Engine{
 		CommentMode:           MapCommentMode(f.CommentMode),
-		GroupSingleLineScopes: f.Configuration.GroupSingleLineFunctions,
+		GroupSingleLineScopes: f.Configuration.groupSingleLineFunctions(),
+	}
+	result := formattingEngine.FormatToBytes(events)
+
+	switch filepath.Ext(filename) {
+	case ".js", ".ts", ".jsx", ".tsx":
+		return result, nil
 	}
 
-	return formattingEngine.FormatToBytes(events), nil
+	if bytes.Equal(normalizedSource, result) || !needsGoNormalization(events, result) {
+		return result, nil
+	}
+
+	// Regrouping declarations can change Go's column alignment and build-tag spacing.
+	return format.Source(result)
+}
+
+func needsGoNormalization(events []engine.LineEvent, result []byte) bool {
+	outputPosition := 0
+	hadBlankLine := false
+
+	for _, event := range events {
+		if event.IsCommentOnly || (event.StatementType == "function" && event.IsSingleLineScope) {
+			return true
+		}
+
+		if event.IsBlank && !event.InRawString {
+			hadBlankLine = true
+
+			continue
+		}
+
+		lineBreaks := 0
+
+		for outputPosition < len(result) && result[outputPosition] == '\n' {
+			outputPosition++
+			lineBreaks++
+		}
+
+		if hadBlankLine && lineBreaks < 2 {
+			return true
+		}
+
+		hadBlankLine = false
+		outputPosition += len(event.Content)
+	}
+
+	return false
 }
 
 func analyzeSource(source []byte, filename string) ([]byte, []engine.LineEvent, error) {

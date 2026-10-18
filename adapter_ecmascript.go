@@ -10,109 +10,155 @@ type EcmaScriptAdapter struct{}
 func (a *EcmaScriptAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, error) {
 	sourceLines := strings.Split(string(source), "\n")
 	events := make([]engine.LineEvent, len(sourceLines))
-	insideTemplateString := false
-	insideBlockComment := false
+	lexicalState := ecmaScriptLexicalState{}
+	delimiters := []ecmaScriptDelimiter{}
+	rootStatement := -1
+	pendingBody := -1
+	previousCode := ""
 	previousEndedWithContinuation := false
 
 	for lineIndex, currentLine := range sourceLines {
-		backtickCount := countRawStringDelimiters(currentLine)
-		wasInsideTemplateString := insideTemplateString
-
-		if backtickCount%2 == 1 {
-			insideTemplateString = !insideTemplateString
-		}
-
+		wasInsideLiteral := lexicalState.quote != 0
+		wasInsideComment := lexicalState.insideBlockComment
+		code := strings.TrimSpace(lexicalState.maskLiteralsAndComments(currentLine))
 		event := engine.NewLineEvent(currentLine)
 
-		if wasInsideTemplateString {
-			event.InRawString = true
+		event.InRawString = wasInsideLiteral || wasInsideComment
+		event.IsCommentOnly = code == "" && !event.IsBlank && !wasInsideLiteral
+
+		if code == "" {
 			events[lineIndex] = event
 
 			continue
 		}
 
-		if event.IsBlank {
-			events[lineIndex] = event
+		statementStart := rootStatement
+		insideExpression := false
 
-			continue
+		if len(delimiters) > 0 {
+			parent := delimiters[len(delimiters)-1]
+
+			insideExpression = !parent.isBody
+			statementStart = parent.currentStatement
+
+			if insideExpression {
+				statementStart = parent.statementStart
+			}
 		}
 
-		trimmedContent := event.TrimmedContent
+		if pendingBody >= 0 {
+			statementStart = pendingBody
+		}
 
-		if insideBlockComment {
-			event.IsCommentOnly = true
+		event.IsClosingBrace = isClosingBrace(code) || strings.HasPrefix(code, "]")
+		event.IsOpeningBrace = isOpeningBrace(code) || strings.HasSuffix(code, "[")
+		event.IsCaseLabel = isCaseLabel(code)
 
-			if strings.Contains(trimmedContent, "*/") {
-				insideBlockComment = false
+		continuedBody := strings.HasPrefix(code, "{") && statementStart >= 0 && events[statementStart].IsScoped
+		isContinuationLine := wasInsideLiteral || insideExpression || previousEndedWithContinuation || continuedBody || pendingBody >= 0 ||
+			strings.HasPrefix(code, ".") || strings.HasPrefix(code, "?.")
+
+		if !isContinuationLine && !event.IsClosingBrace && !event.IsCaseLabel {
+			statementType, isScoped, isContinuation := classifyEcmaScriptStatement(code)
+
+			if statementType == "call" && len(delimiters) > 0 {
+				parent := delimiters[len(delimiters)-1]
+
+				if parent.isBody && parent.statementStart >= 0 && events[parent.statementStart].StatementType == "type" {
+					statementType = "function"
+					isScoped = true
+				}
 			}
 
-			events[lineIndex] = event
-			previousEndedWithContinuation = false
-
-			continue
-		}
-
-		if strings.HasPrefix(trimmedContent, "/*") {
-			event.IsCommentOnly = true
-
-			if !strings.Contains(trimmedContent, "*/") {
-				insideBlockComment = true
-			}
-
-			events[lineIndex] = event
-			previousEndedWithContinuation = false
-
-			continue
-		}
-
-		event.IsClosingBrace = isClosingBrace(currentLine)
-		event.IsOpeningBrace = isOpeningBrace(currentLine)
-		event.IsCaseLabel = isCaseLabel(currentLine)
-		event.IsCommentOnly = isCommentOnly(currentLine)
-
-		if event.IsCommentOnly {
-			events[lineIndex] = event
-
-			continue
-		}
-
-		isContinuationLine := previousEndedWithContinuation ||
-			strings.HasPrefix(trimmedContent, ".") ||
-			strings.HasPrefix(trimmedContent, "?.") ||
-			strings.HasPrefix(trimmedContent, "]")
-		previousEndedWithContinuation = ecmaScriptLineEndsContinuation(trimmedContent)
-
-		if isClosingCurlyBrace(currentLine) {
-			event.HasASTInfo = true
-			event.IsScoped = true
-			event.IsTopLevel = ecmaScriptLineIsTopLevel(currentLine)
-			events[lineIndex] = event
-
-			continue
-		}
-
-		if isContinuationLine {
-			events[lineIndex] = event
-
-			continue
-		}
-
-		statementType, isScoped, isContinuation := classifyEcmaScriptStatement(trimmedContent)
-
-		if statementType != "" {
 			event.HasASTInfo = true
 			event.StatementType = statementType
 			event.IsScoped = isScoped
+			event.IsSingleLineScope = isScoped
 			event.IsContinuation = isContinuation
-			event.IsTopLevel = ecmaScriptLineIsTopLevel(currentLine)
+			event.IsTopLevel = len(delimiters) == 0
 			event.IsStartLine = true
-		} else {
-			event.HasASTInfo = true
-			event.StatementType = "expression"
-			event.IsTopLevel = ecmaScriptLineIsTopLevel(currentLine)
+			statementStart = lineIndex
+
+			if isScoped && (statementType == "function" || statementType == "type" || statementType == "namespace") && !strings.HasSuffix(code, ";") {
+				pendingBody = lineIndex
+			}
+
+			if len(delimiters) == 0 {
+				rootStatement = lineIndex
+			} else {
+				delimiters[len(delimiters)-1].currentStatement = lineIndex
+			}
+		}
+
+		if statementStart >= 0 && ecmaScriptHasFunctionKeyword(code) && !strings.HasSuffix(code, ";") {
+			pendingBody = statementStart
 		}
 
 		events[lineIndex] = event
+
+		for characterIndex := 0; characterIndex < len(code); characterIndex++ {
+			character := code[characterIndex]
+
+			switch character {
+			case '(', '[', '{':
+				prefix := strings.TrimSpace(code[:characterIndex])
+				continuedFunctionBody := prefix == "" && pendingBody == statementStart && strings.Contains(previousCode, ")")
+				isBody := character == '{' && (continuedFunctionBody || ecmaScriptBraceIsBody(prefix, statementStart, events, delimiters))
+				closing := byte(')')
+
+				switch character {
+				case '[':
+					closing = ']'
+				case '{':
+					closing = '}'
+				}
+
+				if isBody && pendingBody == statementStart {
+					pendingBody = -1
+				}
+
+				if isBody && statementStart == lineIndex && event.StatementType == "call" && strings.HasSuffix(prefix, ")") {
+					events[lineIndex].StatementType = "function"
+					events[lineIndex].IsScoped = true
+				}
+
+				delimiters = append(delimiters, ecmaScriptDelimiter{closing: closing, isBody: isBody, openingLine: lineIndex, statementStart: statementStart, currentStatement: -1})
+			case ')', ']', '}':
+				if len(delimiters) == 0 || delimiters[len(delimiters)-1].closing != character {
+					continue
+				}
+
+				closed := delimiters[len(delimiters)-1]
+
+				delimiters = delimiters[:len(delimiters)-1]
+
+				if closed.statementStart < 0 {
+					continue
+				}
+
+				owner := &events[closed.statementStart]
+
+				if closed.isBody && closed.openingLine != lineIndex {
+					owner.IsScoped = true
+				}
+
+				if closed.isBody {
+					owner.IsSingleLineScope = closed.statementStart == lineIndex
+				}
+
+				if event.IsClosingBrace {
+					events[lineIndex].HasASTInfo = true
+					events[lineIndex].StatementType = owner.StatementType
+					events[lineIndex].IsScoped = owner.IsScoped
+					events[lineIndex].IsSingleLineScope = owner.IsSingleLineScope
+					events[lineIndex].IsTopLevel = owner.IsTopLevel
+					statementStart = closed.statementStart
+				}
+			}
+		}
+
+		previousEndedWithContinuation = ecmaScriptLineEndsContinuation(code)
+		previousCode = code
 	}
 
 	return source, events, nil
@@ -130,11 +176,15 @@ func classifyEcmaScriptStatement(trimmedLine string) (string, bool, bool) {
 	classified = strings.TrimPrefix(classified, "async ")
 	classified = strings.TrimPrefix(classified, "declare ")
 
+	if classified == "" {
+		return "", false, false
+	}
+
 	switch {
 	case ecmaScriptStatementHasPrefix(classified, "function"):
 		return "function", true, false
 	case ecmaScriptStatementHasPrefix(classified, "class"):
-		return "class", true, false
+		return "type", true, false
 	case ecmaScriptStatementHasPrefix(classified, "if"):
 		return "if", true, false
 	case ecmaScriptStatementHasPrefix(classified, "else"):
@@ -154,17 +204,17 @@ func classifyEcmaScriptStatement(trimmedLine string) (string, bool, bool) {
 	case ecmaScriptStatementHasPrefix(classified, "finally"):
 		return "try", true, true
 	case ecmaScriptStatementHasPrefix(classified, "interface"):
-		return "interface", true, false
+		return "type", true, false
 	case ecmaScriptStatementHasPrefix(classified, "enum"):
-		return "enum", true, false
+		return "type", true, false
 	case ecmaScriptStatementHasPrefix(classified, "namespace"):
 		return "namespace", true, false
 	case ecmaScriptStatementHasPrefix(classified, "const"):
-		return "const", false, false
+		return "binding", false, false
 	case ecmaScriptStatementHasPrefix(classified, "let"):
-		return "let", false, false
+		return "binding", false, false
 	case ecmaScriptStatementHasPrefix(classified, "var"):
-		return "var", false, false
+		return "binding", false, false
 	case ecmaScriptStatementHasPrefix(classified, "import"):
 		return "import", false, false
 	case ecmaScriptStatementHasPrefix(classified, "type"):
@@ -173,13 +223,21 @@ func classifyEcmaScriptStatement(trimmedLine string) (string, bool, bool) {
 		return "return", false, false
 	case ecmaScriptStatementHasPrefix(classified, "throw"):
 		return "throw", false, false
-	case ecmaScriptStatementHasPrefix(classified, "await"):
-		return "await", false, false
 	case ecmaScriptStatementHasPrefix(classified, "yield"):
 		return "yield", false, false
+	case ecmaScriptStatementHasPrefix(classified, "break"), ecmaScriptStatementHasPrefix(classified, "continue"):
+		return "branch", false, false
 	}
 
-	return "", false, false
+	if ecmaScriptHasAssignment(classified) {
+		return "assignment", false, false
+	}
+
+	if strings.Contains(classified, "(") {
+		return "call", false, false
+	}
+
+	return "expression", false, false
 }
 
 func ecmaScriptStatementHasPrefix(line string, keyword string) bool {
@@ -197,14 +255,6 @@ func ecmaScriptStatementHasPrefix(line string, keyword string) bool {
 		nextCharacter == ';' || nextCharacter == '<' || nextCharacter == '\t'
 }
 
-func ecmaScriptLineIsTopLevel(sourceLine string) bool {
-	if len(sourceLine) == 0 {
-		return false
-	}
-
-	return !isWhitespace(sourceLine[0])
-}
-
 func ecmaScriptLineEndsContinuation(trimmedLine string) bool {
 	if len(trimmedLine) == 0 {
 		return false
@@ -212,26 +262,13 @@ func ecmaScriptLineEndsContinuation(trimmedLine string) bool {
 
 	lastCharacter := trimmedLine[len(trimmedLine)-1]
 
-	if lastCharacter == ',' || lastCharacter == '[' || lastCharacter == '(' {
+	if lastCharacter == ',' || lastCharacter == '[' || lastCharacter == '(' || lastCharacter == '=' ||
+		strings.HasSuffix(trimmedLine, "=>") {
 		return true
 	}
 
 	if lastCharacter == '>' && strings.HasPrefix(trimmedLine, "<") {
 		return true
-	}
-
-	return false
-}
-
-func isClosingCurlyBrace(sourceLine string) bool {
-	for characterIndex := 0; characterIndex < len(sourceLine); characterIndex++ {
-		character := sourceLine[characterIndex]
-
-		if isWhitespace(character) {
-			continue
-		}
-
-		return character == '}'
 	}
 
 	return false

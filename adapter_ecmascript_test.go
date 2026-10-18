@@ -110,9 +110,11 @@ cleanup();
 switch (x) {
 case "a":
   handleA();
+
   break;
 case "b":
   handleB();
+
   break;
 }
 
@@ -420,8 +422,8 @@ func TestClassifyEcmaScriptStatement(t *testing.T) {
 		{"async function foo() {", "function", true, false},
 		{"export function foo() {", "function", true, false},
 		{"export default function() {", "function", true, false},
-		{"class Foo {", "class", true, false},
-		{"export class Foo {", "class", true, false},
+		{"class Foo {", "type", true, false},
+		{"export class Foo {", "type", true, false},
 		{"if (x) {", "if", true, false},
 		{"else if (y) {", "if", true, true},
 		{"else {", "if", true, true},
@@ -432,25 +434,25 @@ func TestClassifyEcmaScriptStatement(t *testing.T) {
 		{"try {", "try", true, false},
 		{"catch (e) {", "try", true, true},
 		{"finally {", "try", true, true},
-		{"interface Foo {", "interface", true, false},
-		{"enum Direction {", "enum", true, false},
+		{"interface Foo {", "type", true, false},
+		{"enum Direction {", "type", true, false},
 		{"namespace Foo {", "namespace", true, false},
-		{"const x = 1;", "const", false, false},
-		{"let x = 1;", "let", false, false},
-		{"var x = 1;", "var", false, false},
+		{"const x = 1;", "binding", false, false},
+		{"let x = 1;", "binding", false, false},
+		{"var x = 1;", "binding", false, false},
 		{"import { foo } from 'bar';", "import", false, false},
 		{"type Foo = string;", "type", false, false},
 		{"return x;", "return", false, false},
 		{"return;", "return", false, false},
 		{"throw new Error();", "throw", false, false},
-		{"await fetch(url);", "await", false, false},
+		{"await fetch(url);", "call", false, false},
 		{"yield value;", "yield", false, false},
-		{"export const x = 1;", "const", false, false},
-		{"export default class Foo {", "class", true, false},
-		{"declare const x: number;", "const", false, false},
+		{"export const x = 1;", "binding", false, false},
+		{"export default class Foo {", "type", true, false},
+		{"declare const x: number;", "binding", false, false},
 		{"declare function foo(): void;", "function", true, false},
-		{"foo();", "", false, false},
-		{"x = 1;", "", false, false},
+		{"foo();", "call", false, false},
+		{"x = 1;", "assignment", false, false},
 		{"", "", false, false},
 	}
 

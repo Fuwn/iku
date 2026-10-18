@@ -94,7 +94,6 @@ var supportedFileExtensions = map[string]bool{
 
 func processDirectory(formatter *Formatter, directoryPath string, exitCode *int) error {
 	var sourceFilePaths []string
-
 	err := filepath.WalkDir(directoryPath, func(currentPath string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -113,7 +112,6 @@ func processDirectory(formatter *Formatter, directoryPath string, exitCode *int)
 
 	var waitGroup sync.WaitGroup
 	var mutex sync.Mutex
-
 	semaphore := make(chan struct{}, runtime.NumCPU())
 
 	for _, filePath := range sourceFilePaths {
@@ -184,6 +182,7 @@ func processFile(formatter *Formatter, filename string, inputReader io.Reader, o
 	if *diffFlag {
 		if !bytes.Equal(sourceContent, formattedResult) {
 			diffOutput := unifiedDiff(filename, sourceContent, formattedResult)
+
 			_, _ = os.Stdout.Write(diffOutput)
 		}
 

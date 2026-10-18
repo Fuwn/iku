@@ -19,6 +19,34 @@ func isGeneralDeclarationScoped(generalDeclaration *ast.GenDecl) bool {
 	return false
 }
 
+func declarationKind(declarationToken token.Token) string {
+	switch declarationToken {
+	case token.VAR, token.CONST:
+		return "binding"
+	default:
+		return declarationToken.String()
+	}
+}
+
+func containsMultilineBody(tokenFile *token.File, node ast.Node) bool {
+	hasBody := false
+
+	ast.Inspect(node, func(currentNode ast.Node) bool {
+		if currentNode == nil || hasBody {
+			return false
+		}
+
+		switch currentNode.(type) {
+		case *ast.FuncLit, *ast.StructType, *ast.InterfaceType:
+			hasBody = tokenFile.PositionFor(currentNode.Pos(), false).Line != tokenFile.PositionFor(currentNode.End(), false).Line
+		}
+
+		return !hasBody
+	})
+
+	return hasBody
+}
+
 func (f *Formatter) buildLineInfo(tokenFileSet *token.FileSet, parsedFile *ast.File) map[int]*lineInformation {
 	lineInformationMap := make(map[int]*lineInformation, 2*len(parsedFile.Decls))
 	tokenFile := tokenFileSet.File(parsedFile.Pos())
@@ -28,23 +56,23 @@ func (f *Formatter) buildLineInfo(tokenFileSet *token.FileSet, parsedFile *ast.F
 	}
 
 	for _, declaration := range parsedFile.Decls {
-		startLine := tokenFile.Line(declaration.Pos())
-		endLine := tokenFile.Line(declaration.End())
+		startLine := tokenFile.PositionFor(declaration.Pos(), false).Line
+		endLine := tokenFile.PositionFor(declaration.End(), false).Line
 		statementType := ""
 		isScoped := false
 
 		switch typedDeclaration := declaration.(type) {
 		case *ast.GenDecl:
-			statementType = typedDeclaration.Tok.String()
-			isScoped = isGeneralDeclarationScoped(typedDeclaration)
+			statementType = declarationKind(typedDeclaration.Tok)
+			isScoped = isGeneralDeclarationScoped(typedDeclaration) || containsMultilineBody(tokenFile, typedDeclaration)
 		case *ast.FuncDecl:
-			statementType = "func"
+			statementType = "function"
 			isScoped = true
 		default:
 			statementType = fmt.Sprintf("%T", declaration)
 		}
 
-		lineInformationMap[startLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isStartLine: true}
+		lineInformationMap[startLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isSingleLineScope: startLine == endLine, isStartLine: true}
 
 		if endLine != startLine {
 			lineInformationMap[endLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isStartLine: false}
@@ -81,18 +109,35 @@ func (f *Formatter) processBlock(tokenFile *token.File, blockStatement *ast.Bloc
 
 func (f *Formatter) processStatementList(tokenFile *token.File, statements []ast.Stmt, lineInformationMap map[int]*lineInformation) {
 	for _, statement := range statements {
-		startLine := tokenFile.Line(statement.Pos())
-		endLine := tokenFile.Line(statement.End())
+		startLine := tokenFile.PositionFor(statement.Pos(), false).Line
+		endLine := tokenFile.PositionFor(statement.End(), false).Line
 		statementType := ""
 		isScoped := false
 
 		switch typedStatement := statement.(type) {
 		case *ast.DeclStmt:
 			if generalDeclaration, isGeneralDeclaration := typedStatement.Decl.(*ast.GenDecl); isGeneralDeclaration {
-				statementType = generalDeclaration.Tok.String()
+				statementType = declarationKind(generalDeclaration.Tok)
+				isScoped = isGeneralDeclarationScoped(generalDeclaration) || containsMultilineBody(tokenFile, generalDeclaration)
 			} else {
 				statementType = fmt.Sprintf("%T", statement)
 			}
+		case *ast.AssignStmt:
+			statementType = "assignment"
+			isScoped = containsMultilineBody(tokenFile, typedStatement)
+
+			if typedStatement.Tok == token.DEFINE {
+				statementType = "binding"
+			}
+		case *ast.ExprStmt:
+			statementType = "expression"
+
+			if _, isCall := typedStatement.X.(*ast.CallExpr); isCall {
+				statementType = "call"
+				isScoped = false
+			}
+		case *ast.IncDecStmt:
+			statementType = "assignment"
 		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt,
 			*ast.TypeSwitchStmt, *ast.SelectStmt, *ast.BlockStmt:
 			statementType = fmt.Sprintf("%T", statement)
@@ -104,7 +149,7 @@ func (f *Formatter) processStatementList(tokenFile *token.File, statements []ast
 		existingStart := lineInformationMap[startLine]
 
 		if existingStart == nil || !existingStart.isStartLine {
-			lineInformationMap[startLine] = &lineInformation{statementType: statementType, isTopLevel: false, isScoped: isScoped, isStartLine: true}
+			lineInformationMap[startLine] = &lineInformation{statementType: statementType, isTopLevel: false, isScoped: isScoped, isSingleLineScope: startLine == endLine, isStartLine: true}
 		}
 
 		existingEnd := lineInformationMap[endLine]
@@ -141,8 +186,8 @@ func (f *Formatter) processStatementList(tokenFile *token.File, statements []ast
 }
 
 func (f *Formatter) processIfStatement(tokenFile *token.File, ifStatement *ast.IfStmt, lineInformationMap map[int]*lineInformation) {
-	startLine := tokenFile.Line(ifStatement.Pos())
-	endLine := tokenFile.Line(ifStatement.End())
+	startLine := tokenFile.PositionFor(ifStatement.Pos(), false).Line
+	endLine := tokenFile.PositionFor(ifStatement.End(), false).Line
 	existingStart := lineInformationMap[startLine]
 
 	if existingStart == nil || !existingStart.isStartLine {

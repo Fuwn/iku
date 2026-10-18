@@ -24,7 +24,7 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 	previousWasScoped := false
 	previousWasSingleLineScope := false
 
-	for eventIndex, event := range events {
+	for _, event := range events {
 		if event.InRawString {
 			if hasWrittenContent {
 				resultBuilder.WriteByte('\n')
@@ -33,6 +33,15 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 			resultBuilder.WriteString(event.Content)
 
 			hasWrittenContent = true
+			previousWasOpenBrace = event.IsOpeningBrace || event.IsCaseLabel
+
+			if event.HasASTInfo {
+				previousStatementType = event.StatementType
+				previousWasTopLevel = event.IsTopLevel
+				previousWasScoped = event.IsScoped
+				previousWasSingleLineScope = event.IsSingleLineScope
+				previousWasComment = event.IsCommentOnly
+			}
 
 			continue
 		}
@@ -50,15 +59,21 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 		needsBlankLine := false
 		currentIsTopLevel := event.HasASTInfo && event.IsTopLevel
 		currentIsScoped := event.HasASTInfo && event.IsScoped
-		currentIsSingleLineScope := currentIsScoped && !event.IsOpeningBrace && !event.IsClosingBrace
+		currentIsSingleLineScope := currentIsScoped && event.IsSingleLineScope
+		sameStatementType := currentStatementType == previousStatementType
+		groupedBindings := sameStatementType && currentStatementType == "binding" && !currentIsTopLevel && !previousWasTopLevel
+		groupedCalls := sameStatementType && currentStatementType == "call"
+		isDefinition := currentStatementType == "function" || currentStatementType == "func" || currentStatementType == "type"
 
 		if hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel && !event.IsContinuation {
 			if currentIsTopLevel && previousWasTopLevel && currentStatementType != previousStatementType {
 				if e.CommentMode != CommentsFollow || !previousWasComment {
 					needsBlankLine = true
 				}
+			} else if groupedBindings || groupedCalls {
+				needsBlankLine = false
 			} else if event.HasASTInfo && (currentIsScoped || previousWasScoped) {
-				if e.GroupSingleLineScopes && currentIsSingleLineScope && previousWasSingleLineScope && currentStatementType == previousStatementType {
+				if e.GroupSingleLineScopes && isDefinition && currentIsSingleLineScope && previousWasSingleLineScope && sameStatementType {
 					needsBlankLine = false
 				} else if e.CommentMode != CommentsFollow || !previousWasComment {
 					needsBlankLine = true
@@ -69,25 +84,10 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 				}
 			}
 
-			if e.CommentMode == CommentsFollow && event.IsCommentOnly && !previousWasComment {
-				nextIndex := e.findNextNonComment(events, eventIndex+1)
-
-				if nextIndex >= 0 {
-					nextNonCommentEvent := events[nextIndex]
-
-					if nextNonCommentEvent.HasASTInfo {
-						nextIsTopLevel := nextNonCommentEvent.IsTopLevel
-						nextIsScoped := nextNonCommentEvent.IsScoped
-
-						if nextIsTopLevel && previousWasTopLevel && nextNonCommentEvent.StatementType != previousStatementType {
-							needsBlankLine = true
-						} else if nextIsScoped || previousWasScoped {
-							needsBlankLine = true
-						} else if nextNonCommentEvent.StatementType != "" && previousStatementType != "" && nextNonCommentEvent.StatementType != previousStatementType {
-							needsBlankLine = true
-						}
-					}
-				}
+			if event.IsCommentOnly {
+				needsBlankLine = !previousWasComment && e.CommentMode != CommentsPrecede
+			} else if previousWasComment {
+				needsBlankLine = e.CommentMode != CommentsFollow
 			}
 		}
 
@@ -137,20 +137,4 @@ func (e *Engine) FormatToBytes(events []LineEvent) []byte {
 	e.format(events, &resultBuilder)
 
 	return []byte(resultBuilder.String())
-}
-
-func (e *Engine) findNextNonComment(events []LineEvent, startIndex int) int {
-	for eventIndex := startIndex; eventIndex < len(events); eventIndex++ {
-		if events[eventIndex].IsBlank {
-			continue
-		}
-
-		if events[eventIndex].IsCommentOnly {
-			continue
-		}
-
-		return eventIndex
-	}
-
-	return -1
 }
