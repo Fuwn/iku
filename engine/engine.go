@@ -15,7 +15,18 @@ type Engine struct {
 	GroupSingleLineScopes bool
 }
 
-func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
+func (e *Engine) FormatToString(events []LineEvent) string {
+	var resultBuilder strings.Builder
+	outputCapacityBytes := 1
+
+	for _, event := range events {
+		if !event.IsBlank || event.InRawString {
+			outputCapacityBytes += len(event.Content) + 2
+		}
+	}
+
+	resultBuilder.Grow(outputCapacityBytes)
+
 	hasWrittenContent := false
 	previousWasOpenBrace := false
 	previousStatementType := ""
@@ -25,28 +36,7 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 	previousWasSingleLineScope := false
 
 	for _, event := range events {
-		if event.InRawString {
-			if hasWrittenContent {
-				resultBuilder.WriteByte('\n')
-			}
-
-			resultBuilder.WriteString(event.Content)
-
-			hasWrittenContent = true
-			previousWasOpenBrace = event.IsOpeningBrace || event.IsCaseLabel
-
-			if event.HasASTInfo {
-				previousStatementType = event.StatementType
-				previousWasTopLevel = event.IsTopLevel
-				previousWasScoped = event.IsScoped
-				previousWasSingleLineScope = event.IsSingleLineScope
-				previousWasComment = event.IsCommentOnly
-			}
-
-			continue
-		}
-
-		if event.IsBlank {
+		if event.IsBlank && !event.InRawString {
 			continue
 		}
 
@@ -57,31 +47,26 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 		}
 
 		needsBlankLine := false
-		currentIsTopLevel := event.HasASTInfo && event.IsTopLevel
-		currentIsScoped := event.HasASTInfo && event.IsScoped
-		currentIsSingleLineScope := currentIsScoped && event.IsSingleLineScope
-		sameStatementType := currentStatementType == previousStatementType
-		groupedBindings := sameStatementType && currentStatementType == "binding" && !currentIsTopLevel && !previousWasTopLevel
-		groupedCalls := sameStatementType && currentStatementType == "call"
-		isDefinition := currentStatementType == "function" || currentStatementType == "func" || currentStatementType == "type"
 
-		if hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel && !event.IsContinuation {
-			if currentIsTopLevel && previousWasTopLevel && currentStatementType != previousStatementType {
-				if e.CommentMode != CommentsFollow || !previousWasComment {
-					needsBlankLine = true
-				}
+		if !event.InRawString && hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel && !event.IsContinuation {
+			currentIsTopLevel := event.HasASTInfo && event.IsTopLevel
+			currentIsScoped := event.HasASTInfo && event.IsScoped
+			currentIsSingleLineScope := currentIsScoped && event.IsSingleLineScope
+			sameStatementType := currentStatementType == previousStatementType
+			groupedBindings := sameStatementType && currentStatementType == "binding" && !currentIsTopLevel && !previousWasTopLevel
+			groupedCalls := sameStatementType && currentStatementType == "call"
+			isDefinition := currentStatementType == "function" || currentStatementType == "func" || currentStatementType == "type"
+
+			if currentIsTopLevel && previousWasTopLevel && !sameStatementType {
+				needsBlankLine = true
 			} else if groupedBindings || groupedCalls {
 				needsBlankLine = false
 			} else if event.HasASTInfo && (currentIsScoped || previousWasScoped) {
-				if e.GroupSingleLineScopes && isDefinition && currentIsSingleLineScope && previousWasSingleLineScope && sameStatementType {
-					needsBlankLine = false
-				} else if e.CommentMode != CommentsFollow || !previousWasComment {
-					needsBlankLine = true
-				}
-			} else if currentStatementType != "" && previousStatementType != "" && currentStatementType != previousStatementType {
-				if e.CommentMode != CommentsFollow || !previousWasComment {
-					needsBlankLine = true
-				}
+				groupedDefinitions := e.GroupSingleLineScopes && isDefinition && currentIsSingleLineScope && previousWasSingleLineScope && sameStatementType
+
+				needsBlankLine = !groupedDefinitions
+			} else if currentStatementType != "" && previousStatementType != "" && !sameStatementType {
+				needsBlankLine = true
 			}
 
 			if event.IsCommentOnly {
@@ -103,14 +88,17 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 
 		hasWrittenContent = true
 		previousWasOpenBrace = event.IsOpeningBrace || event.IsCaseLabel
-		previousWasComment = event.IsCommentOnly
+
+		if !event.InRawString || event.HasASTInfo {
+			previousWasComment = event.IsCommentOnly
+		}
 
 		if event.HasASTInfo {
 			previousStatementType = event.StatementType
 			previousWasTopLevel = event.IsTopLevel
 			previousWasScoped = event.IsScoped
-			previousWasSingleLineScope = currentIsSingleLineScope
-		} else if currentStatementType != "" {
+			previousWasSingleLineScope = event.IsSingleLineScope && (event.InRawString || event.IsScoped)
+		} else if !event.InRawString && currentStatementType != "" {
 			previousStatementType = currentStatementType
 			previousWasTopLevel = false
 			previousWasScoped = false
@@ -119,22 +107,10 @@ func (e *Engine) format(events []LineEvent, resultBuilder *strings.Builder) {
 	}
 
 	resultBuilder.WriteByte('\n')
-}
-
-func (e *Engine) FormatToString(events []LineEvent) string {
-	var resultBuilder strings.Builder
-
-	resultBuilder.Grow(len(events) * 40)
-	e.format(events, &resultBuilder)
 
 	return resultBuilder.String()
 }
 
 func (e *Engine) FormatToBytes(events []LineEvent) []byte {
-	var resultBuilder strings.Builder
-
-	resultBuilder.Grow(len(events) * 40)
-	e.format(events, &resultBuilder)
-
-	return []byte(resultBuilder.String())
+	return []byte(e.FormatToString(events))
 }
