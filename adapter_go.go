@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"github.com/Fuwn/iku/engine"
 	"go/ast"
 	"go/format"
@@ -20,35 +19,31 @@ func (a *GoAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, error) {
 	}
 
 	tokenFileSet := token.NewFileSet()
-	parsedFile, err := parser.ParseFile(tokenFileSet, "", formattedSource, parser.ParseComments)
+	parsedFile, err := parser.ParseFile(tokenFileSet, "", formattedSource, parser.ParseComments|parser.SkipObjectResolution)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	formatter := &Formatter{}
-	lineInformationMap := formatter.buildLineInfo(tokenFileSet, parsedFile)
-	sourceByteLines := bytes.Split(formattedSource, []byte("\n"))
-	events := make([]engine.LineEvent, len(sourceByteLines))
-	blockCommentLines := make(map[int]bool)
-	rawStringLines := make(map[int]bool)
+	remainingSource := string(formattedSource)
+	events := make([]engine.LineEvent, strings.Count(remainingSource, "\n")+1)
 
-	ast.Inspect(parsedFile, func(node ast.Node) bool {
-		literal, isLiteral := node.(*ast.BasicLit)
+	indexGoStatements(tokenFileSet, parsedFile, events)
 
-		if !isLiteral || literal.Kind != token.STRING || !strings.HasPrefix(literal.Value, "`") {
-			return true
-		}
+	for lineIndex := range events {
+		currentLine, nextSource, _ := strings.Cut(remainingSource, "\n")
+		event := &events[lineIndex]
 
-		firstLine := tokenFileSet.PositionFor(literal.Pos(), false).Line
-		lastLine := tokenFileSet.PositionFor(literal.End(), false).Line
-
-		for literalLine := firstLine + 1; literalLine <= lastLine; literalLine++ {
-			rawStringLines[literalLine] = true
-		}
-
-		return false
-	})
+		remainingSource = nextSource
+		event.Content = currentLine
+		event.TrimmedContent = strings.TrimSpace(currentLine)
+		event.IsBlank = event.TrimmedContent == ""
+		event.IsClosingBrace = isClosingBrace(currentLine)
+		event.IsOpeningBrace = isOpeningBrace(currentLine)
+		event.IsCaseLabel = isCaseLabel(currentLine)
+		event.IsCommentOnly = isCommentOnly(currentLine)
+		event.IsPackageDecl = isPackageLine(event.TrimmedContent)
+	}
 
 	for _, commentGroup := range parsedFile.Comments {
 		for _, comment := range commentGroup.List {
@@ -60,53 +55,34 @@ func (a *GoAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, error) {
 			lastLine := tokenFileSet.PositionFor(comment.End(), false).Line
 
 			for commentLine := firstLine; commentLine <= lastLine; commentLine++ {
-				blockCommentLines[commentLine] = commentLine != firstLine
+				event := &events[commentLine-1]
+				commentEnd := strings.Index(event.TrimmedContent, "*/")
+				commentOnly := strings.HasPrefix(event.TrimmedContent, "/*") &&
+					(commentEnd < 0 || strings.TrimSpace(event.TrimmedContent[commentEnd+2:]) == "")
+
+				event.InRawString = commentLine != firstLine
+				event.IsCommentOnly = event.IsCommentOnly || commentOnly
 			}
 		}
 	}
 
-	for lineIndex, currentLineBytes := range sourceByteLines {
-		currentLine := string(currentLineBytes)
-		event := engine.NewLineEvent(currentLine)
-		commentContinuation, isBlockComment := blockCommentLines[lineIndex+1]
-		lineNumber := lineIndex + 1
-		currentInformation := lineInformationMap[lineNumber]
+	// Mark raw strings last because their closing lines can also start block comments.
+	ast.Inspect(parsedFile, func(node ast.Node) bool {
+		literal, isLiteral := node.(*ast.BasicLit)
 
-		if currentInformation != nil {
-			event.HasASTInfo = true
-			event.StatementType = currentInformation.statementType
-			event.IsTopLevel = currentInformation.isTopLevel
-			event.IsScoped = currentInformation.isScoped
-			event.IsSingleLineScope = currentInformation.isSingleLineScope
-			event.IsStartLine = currentInformation.isStartLine
+		if !isLiteral || literal.Kind != token.STRING || !strings.HasPrefix(literal.Value, "`") {
+			return true
 		}
 
-		event.IsClosingBrace = isClosingBrace(currentLine)
-		event.IsOpeningBrace = isOpeningBrace(currentLine)
-		event.IsCaseLabel = isCaseLabel(currentLine)
+		firstLine := tokenFileSet.PositionFor(literal.Pos(), false).Line
+		lastLine := tokenFileSet.PositionFor(literal.End(), false).Line
 
-		commentEnd := strings.Index(event.TrimmedContent, "*/")
-		blockCommentOnly := isBlockComment && strings.HasPrefix(event.TrimmedContent, "/*") &&
-			(commentEnd < 0 || strings.TrimSpace(event.TrimmedContent[commentEnd+2:]) == "")
+		for literalLine := firstLine + 1; literalLine <= lastLine; literalLine++ {
+			events[literalLine-1].InRawString = true
+		}
 
-		event.InRawString = rawStringLines[lineNumber] || commentContinuation
-		event.IsCommentOnly = isCommentOnly(currentLine) || blockCommentOnly
-		event.IsPackageDecl = isPackageLine(event.TrimmedContent)
-		events[lineIndex] = event
-	}
+		return false
+	})
 
 	return formattedSource, events, nil
-}
-
-func MapCommentMode(mode CommentMode) engine.CommentMode {
-	switch mode {
-	case CommentsFollow:
-		return engine.CommentsFollow
-	case CommentsPrecede:
-		return engine.CommentsPrecede
-	case CommentsStandalone:
-		return engine.CommentsStandalone
-	default:
-		return engine.CommentsFollow
-	}
 }

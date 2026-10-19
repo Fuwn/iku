@@ -5,6 +5,15 @@ import (
 	"testing"
 )
 
+func BenchmarkFormatNested(b *testing.B) {
+	source := []byte("package example\nfunc example() {\n" + strings.Repeat("if ready {\n", 20) + "run()\n" + strings.Repeat("}\n", 21))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+
+	for b.Loop() {
+		_, _ = formatter.Format(source, "example.go")
+	}
+}
+
 func BenchmarkFormatVerbatim(b *testing.B) {
 	paragraphs := strings.Repeat("literal { body }\n\n", 1000)
 	cases := []struct {

@@ -3,11 +3,35 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"go/format"
+	"strings"
 	"testing"
 )
 
 func goFunctionBody(statements string) string {
 	return "package example\n\nfunc example() {\n" + statements + "}\n"
+}
+
+func TestFormatDeepNesting(t *testing.T) {
+	const nestingDepth = 600
+	nestedStatements := strings.Repeat("if true {\n", nestingDepth) + "return\n" + strings.Repeat("}\n", nestingDepth)
+	source := []byte(goFunctionBody(nestedStatements))
+	expected, err := format.Source(source)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	formatter := &Formatter{}
+	actual, err := formatter.Format(source, "example.go")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(actual, expected) {
+		t.Fatal("Deeply nested block formatting differs from gofmt.")
+	}
 }
 
 func TestFormatStatementRoles(t *testing.T) {
@@ -17,6 +41,24 @@ func TestFormatStatementRoles(t *testing.T) {
 		source   string
 		expected string
 	}{
+		{
+			name:     "Go raw strings and block comments can share a line",
+			filename: "example.go",
+			source:   "package example\nfunc example() {\nmessage := `first\nsecond` /* first\nsecond */\nvar enabled = true\nenabled = false\n}\n",
+			expected: "package example\n\nfunc example() {\n\tmessage := `first\nsecond` /* first\n\tsecond */\n\tvar enabled = true\n\n\tenabled = false\n}\n",
+		},
+		{
+			name:     "Go adjacent block comments retain statement roles",
+			filename: "example.go",
+			source:   "package example\nfunc example() {\n/* first\n second */ /* third */ count := 1\ncount = 2\n}\n",
+			expected: "package example\n\nfunc example() {\n\t/* first\n\t   second */ /* third */\n\n\tcount := 1\n\n\tcount = 2\n}\n",
+		},
+		{
+			name:     "Go else-if branches keep statement roles",
+			filename: "example.go",
+			source:   goFunctionBody("\tif first {\n\t\trun()\n\t} else if second {\n\t\tcount := 1\n\t\tvar enabled = true\n\t\tcount = 2\n\t\tsave()\n\t} else {\n\t\tstop()\n\t}\n\tnotify()\n"),
+			expected: goFunctionBody("\tif first {\n\t\trun()\n\t} else if second {\n\t\tcount := 1\n\t\tvar enabled = true\n\n\t\tcount = 2\n\n\t\tsave()\n\t} else {\n\t\tstop()\n\t}\n\n\tnotify()\n"),
+		},
 		{
 			name:     "Go bindings and reassignment",
 			filename: "example.go",

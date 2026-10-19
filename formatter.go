@@ -7,25 +7,17 @@ import (
 	"path/filepath"
 )
 
-type CommentMode int
+type CommentMode = engine.CommentMode
 
 const (
-	CommentsFollow CommentMode = iota
-	CommentsPrecede
-	CommentsStandalone
+	CommentsFollow     = engine.CommentsFollow
+	CommentsPrecede    = engine.CommentsPrecede
+	CommentsStandalone = engine.CommentsStandalone
 )
 
 type Formatter struct {
 	CommentMode   CommentMode
 	Configuration Configuration
-}
-
-type lineInformation struct {
-	statementType     string
-	isTopLevel        bool
-	isScoped          bool
-	isSingleLineScope bool
-	isStartLine       bool
 }
 
 func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
@@ -35,8 +27,14 @@ func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
 		return nil, err
 	}
 
+	commentMode := f.CommentMode
+
+	if commentMode < CommentsFollow || commentMode > CommentsStandalone {
+		commentMode = CommentsFollow
+	}
+
 	formattingEngine := &engine.Engine{
-		CommentMode:           MapCommentMode(f.CommentMode),
+		CommentMode:           commentMode,
 		GroupSingleLineScopes: f.Configuration.groupSingleLineFunctions(),
 	}
 	result := formattingEngine.FormatToBytes(events)
@@ -69,14 +67,13 @@ func needsGoNormalization(events []engine.LineEvent, result []byte) bool {
 			continue
 		}
 
-		lineBreaks := 0
+		lineBreakStart := outputPosition
 
 		for outputPosition < len(result) && result[outputPosition] == '\n' {
 			outputPosition++
-			lineBreaks++
 		}
 
-		if hadBlankLine && lineBreaks < 2 {
+		if hadBlankLine && outputPosition-lineBreakStart < 2 {
 			return true
 		}
 

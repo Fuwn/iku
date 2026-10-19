@@ -1,31 +1,29 @@
 package main
 
 import (
-	"fmt"
+	"github.com/Fuwn/iku/engine"
 	"go/ast"
 	"go/token"
+	"reflect"
 )
 
-func isGeneralDeclarationScoped(generalDeclaration *ast.GenDecl) bool {
+func classifyGoGeneralDeclaration(tokenFile *token.File, generalDeclaration *ast.GenDecl, isSingleLine bool) (string, bool) {
+	statementType := "binding"
+
+	if generalDeclaration.Tok != token.VAR && generalDeclaration.Tok != token.CONST {
+		statementType = generalDeclaration.Tok.String()
+	}
+
 	for _, specification := range generalDeclaration.Specs {
 		if typeSpecification, isTypeSpecification := specification.(*ast.TypeSpec); isTypeSpecification {
 			switch typeSpecification.Type.(type) {
 			case *ast.StructType, *ast.InterfaceType:
-				return true
+				return statementType, true
 			}
 		}
 	}
 
-	return false
-}
-
-func declarationKind(declarationToken token.Token) string {
-	switch declarationToken {
-	case token.VAR, token.CONST:
-		return "binding"
-	default:
-		return declarationToken.String()
-	}
+	return statementType, !isSingleLine && containsMultilineBody(tokenFile, generalDeclaration)
 }
 
 func containsMultilineBody(tokenFile *token.File, node ast.Node) bool {
@@ -47,84 +45,71 @@ func containsMultilineBody(tokenFile *token.File, node ast.Node) bool {
 	return hasBody
 }
 
-func (f *Formatter) buildLineInfo(tokenFileSet *token.FileSet, parsedFile *ast.File) map[int]*lineInformation {
-	lineInformationMap := make(map[int]*lineInformation, 2*len(parsedFile.Decls))
+func indexGoStatements(tokenFileSet *token.FileSet, parsedFile *ast.File, events []engine.LineEvent) {
 	tokenFile := tokenFileSet.File(parsedFile.Pos())
 
 	if tokenFile == nil {
-		return lineInformationMap
+		return
 	}
 
 	for _, declaration := range parsedFile.Decls {
 		startLine := tokenFile.PositionFor(declaration.Pos(), false).Line
 		endLine := tokenFile.PositionFor(declaration.End(), false).Line
+		isSingleLine := startLine == endLine
 		statementType := ""
 		isScoped := false
 
 		switch typedDeclaration := declaration.(type) {
 		case *ast.GenDecl:
-			statementType = declarationKind(typedDeclaration.Tok)
-			isScoped = isGeneralDeclarationScoped(typedDeclaration) || containsMultilineBody(tokenFile, typedDeclaration)
+			statementType, isScoped = classifyGoGeneralDeclaration(tokenFile, typedDeclaration, isSingleLine)
 		case *ast.FuncDecl:
 			statementType = "function"
 			isScoped = true
 		default:
-			statementType = fmt.Sprintf("%T", declaration)
+			statementType = reflect.TypeOf(declaration).String()
 		}
 
-		lineInformationMap[startLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isSingleLineScope: startLine == endLine, isStartLine: true}
+		events[startLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsTopLevel: true, IsScoped: isScoped, IsSingleLineScope: isSingleLine, IsStartLine: true}
 
 		if endLine != startLine {
-			lineInformationMap[endLine] = &lineInformation{statementType: statementType, isTopLevel: true, isScoped: isScoped, isStartLine: false}
+			events[endLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsTopLevel: true, IsScoped: isScoped}
 		}
 	}
 
 	ast.Inspect(parsedFile, func(astNode ast.Node) bool {
-		if astNode == nil {
-			return true
-		}
-
 		switch typedNode := astNode.(type) {
 		case *ast.BlockStmt:
-			f.processBlock(tokenFile, typedNode, lineInformationMap)
+			indexGoStatementList(tokenFile, typedNode.List, events)
 		case *ast.CaseClause:
-			f.processStatementList(tokenFile, typedNode.Body, lineInformationMap)
+			indexGoStatementList(tokenFile, typedNode.Body, events)
 		case *ast.CommClause:
-			f.processStatementList(tokenFile, typedNode.Body, lineInformationMap)
+			indexGoStatementList(tokenFile, typedNode.Body, events)
+		case *ast.IfStmt:
+			if elseIfStatement, isElseIf := typedNode.Else.(*ast.IfStmt); isElseIf {
+				indexGoStatementList(tokenFile, []ast.Stmt{elseIfStatement}, events)
+			}
 		}
 
 		return true
 	})
-
-	return lineInformationMap
 }
 
-func (f *Formatter) processBlock(tokenFile *token.File, blockStatement *ast.BlockStmt, lineInformationMap map[int]*lineInformation) {
-	if blockStatement == nil {
-		return
-	}
-
-	f.processStatementList(tokenFile, blockStatement.List, lineInformationMap)
-}
-
-func (f *Formatter) processStatementList(tokenFile *token.File, statements []ast.Stmt, lineInformationMap map[int]*lineInformation) {
+func indexGoStatementList(tokenFile *token.File, statements []ast.Stmt, events []engine.LineEvent) {
 	for _, statement := range statements {
 		startLine := tokenFile.PositionFor(statement.Pos(), false).Line
 		endLine := tokenFile.PositionFor(statement.End(), false).Line
+		isSingleLine := startLine == endLine
 		statementType := ""
 		isScoped := false
 
 		switch typedStatement := statement.(type) {
 		case *ast.DeclStmt:
 			if generalDeclaration, isGeneralDeclaration := typedStatement.Decl.(*ast.GenDecl); isGeneralDeclaration {
-				statementType = declarationKind(generalDeclaration.Tok)
-				isScoped = isGeneralDeclarationScoped(generalDeclaration) || containsMultilineBody(tokenFile, generalDeclaration)
-			} else {
-				statementType = fmt.Sprintf("%T", statement)
+				statementType, isScoped = classifyGoGeneralDeclaration(tokenFile, generalDeclaration, isSingleLine)
 			}
 		case *ast.AssignStmt:
 			statementType = "assignment"
-			isScoped = containsMultilineBody(tokenFile, typedStatement)
+			isScoped = !isSingleLine && containsMultilineBody(tokenFile, typedStatement)
 
 			if typedStatement.Tok == token.DEFINE {
 				statementType = "binding"
@@ -134,79 +119,24 @@ func (f *Formatter) processStatementList(tokenFile *token.File, statements []ast
 
 			if _, isCall := typedStatement.X.(*ast.CallExpr); isCall {
 				statementType = "call"
-				isScoped = false
 			}
 		case *ast.IncDecStmt:
 			statementType = "assignment"
 		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt,
 			*ast.TypeSwitchStmt, *ast.SelectStmt, *ast.BlockStmt:
-			statementType = fmt.Sprintf("%T", statement)
 			isScoped = true
-		default:
-			statementType = fmt.Sprintf("%T", statement)
 		}
 
-		existingStart := lineInformationMap[startLine]
-
-		if existingStart == nil || !existingStart.isStartLine {
-			lineInformationMap[startLine] = &lineInformation{statementType: statementType, isTopLevel: false, isScoped: isScoped, isSingleLineScope: startLine == endLine, isStartLine: true}
+		if statementType == "" {
+			statementType = reflect.TypeOf(statement).String()
 		}
 
-		existingEnd := lineInformationMap[endLine]
-
-		if existingEnd == nil || !existingEnd.isStartLine {
-			lineInformationMap[endLine] = &lineInformation{statementType: statementType, isTopLevel: false, isScoped: isScoped, isStartLine: false}
+		if !events[startLine-1].IsStartLine {
+			events[startLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsScoped: isScoped, IsSingleLineScope: isSingleLine, IsStartLine: true}
 		}
 
-		switch typedStatement := statement.(type) {
-		case *ast.IfStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
-
-			if typedStatement.Else != nil {
-				if elseBlock, isBlockStatement := typedStatement.Else.(*ast.BlockStmt); isBlockStatement {
-					f.processBlock(tokenFile, elseBlock, lineInformationMap)
-				} else if elseIfStatement, isIfStatement := typedStatement.Else.(*ast.IfStmt); isIfStatement {
-					f.processIfStatement(tokenFile, elseIfStatement, lineInformationMap)
-				}
-			}
-		case *ast.ForStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
-		case *ast.RangeStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
-		case *ast.SwitchStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
-		case *ast.TypeSwitchStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
-		case *ast.SelectStmt:
-			f.processBlock(tokenFile, typedStatement.Body, lineInformationMap)
-		case *ast.BlockStmt:
-			f.processBlock(tokenFile, typedStatement, lineInformationMap)
-		}
-	}
-}
-
-func (f *Formatter) processIfStatement(tokenFile *token.File, ifStatement *ast.IfStmt, lineInformationMap map[int]*lineInformation) {
-	startLine := tokenFile.PositionFor(ifStatement.Pos(), false).Line
-	endLine := tokenFile.PositionFor(ifStatement.End(), false).Line
-	existingStart := lineInformationMap[startLine]
-
-	if existingStart == nil || !existingStart.isStartLine {
-		lineInformationMap[startLine] = &lineInformation{statementType: "*ast.IfStmt", isTopLevel: false, isScoped: true, isStartLine: true}
-	}
-
-	existingEnd := lineInformationMap[endLine]
-
-	if existingEnd == nil || !existingEnd.isStartLine {
-		lineInformationMap[endLine] = &lineInformation{statementType: "*ast.IfStmt", isTopLevel: false, isScoped: true, isStartLine: false}
-	}
-
-	f.processBlock(tokenFile, ifStatement.Body, lineInformationMap)
-
-	if ifStatement.Else != nil {
-		if elseBlock, isBlockStatement := ifStatement.Else.(*ast.BlockStmt); isBlockStatement {
-			f.processBlock(tokenFile, elseBlock, lineInformationMap)
-		} else if elseIfStatement, isIfStatement := ifStatement.Else.(*ast.IfStmt); isIfStatement {
-			f.processIfStatement(tokenFile, elseIfStatement, lineInformationMap)
+		if !events[endLine-1].IsStartLine {
+			events[endLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsScoped: isScoped}
 		}
 	}
 }
