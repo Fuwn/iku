@@ -1,99 +1,61 @@
 package main
 
+import "strings"
+
 func isWhitespace(character byte) bool {
 	return character == ' ' || character == '\t' || character == '\n' || character == '\r' || character == '\f'
 }
 
-func isClosingBrace(sourceLine string) bool {
-	for characterIndex := 0; characterIndex < len(sourceLine); characterIndex++ {
-		character := sourceLine[characterIndex]
+func trimLeadingWhitespace(source string) string {
+	start := 0
 
-		if isWhitespace(character) {
-			continue
-		}
-
-		return character == '}' || character == ')'
+	for start < len(source) && isWhitespace(source[start]) {
+		start++
 	}
 
-	return false
+	return source[start:]
+}
+
+func trimTrailingWhitespace(source string) string {
+	end := len(source)
+
+	for end > 0 && isWhitespace(source[end-1]) {
+		end--
+	}
+
+	return source[:end]
+}
+
+func isClosingBrace(sourceLine string) bool {
+	content := trimLeadingWhitespace(sourceLine)
+
+	return len(content) > 0 && (content[0] == '}' || content[0] == ')')
 }
 
 func isOpeningBrace(sourceLine string) bool {
-	for characterIndex := len(sourceLine) - 1; characterIndex >= 0; characterIndex-- {
-		character := sourceLine[characterIndex]
+	content := trimTrailingWhitespace(sourceLine)
 
-		if isWhitespace(character) {
-			continue
-		}
-
-		return character == '{' || character == '('
-	}
-
-	return false
+	return strings.HasSuffix(content, "{") || strings.HasSuffix(content, "(")
 }
 
 func isCaseLabel(sourceLine string) bool {
-	firstNonWhitespaceIndex := 0
+	content := trimLeadingWhitespace(sourceLine)
 
-	for firstNonWhitespaceIndex < len(sourceLine) && isWhitespace(sourceLine[firstNonWhitespaceIndex]) {
-		firstNonWhitespaceIndex++
-	}
-
-	if firstNonWhitespaceIndex >= len(sourceLine) {
-		return false
-	}
-
-	contentAfterWhitespace := sourceLine[firstNonWhitespaceIndex:]
-
-	if len(contentAfterWhitespace) >= 5 && contentAfterWhitespace[:4] == "case" && isWhitespace(contentAfterWhitespace[4]) {
+	if len(content) >= 5 && strings.HasPrefix(content, "case") && isWhitespace(content[4]) {
 		return true
 	}
 
-	if len(contentAfterWhitespace) >= 7 && contentAfterWhitespace[:7] == "default" {
-		for characterIndex := 7; characterIndex < len(contentAfterWhitespace); characterIndex++ {
-			character := contentAfterWhitespace[characterIndex]
-
-			if isWhitespace(character) {
-				continue
-			}
-
-			if character == ':' {
-				return true
-			}
-
-			break
-		}
+	if strings.HasPrefix(content, "default") && strings.HasPrefix(trimLeadingWhitespace(content[7:]), ":") {
+		return true
 	}
 
-	if firstNonWhitespaceIndex > 0 {
-		lastNonWhitespaceIndex := len(sourceLine) - 1
-
-		for lastNonWhitespaceIndex >= 0 && isWhitespace(sourceLine[lastNonWhitespaceIndex]) {
-			lastNonWhitespaceIndex--
-		}
-
-		if lastNonWhitespaceIndex >= 0 && sourceLine[lastNonWhitespaceIndex] == ':' {
-			return true
-		}
-	}
-
-	return false
+	return len(content) < len(sourceLine) && strings.HasSuffix(trimTrailingWhitespace(content), ":")
 }
 
 func isCommentOnly(sourceLine string) bool {
-	for characterIndex := range len(sourceLine) {
-		character := sourceLine[characterIndex]
-
-		if isWhitespace(character) {
-			continue
-		}
-
-		return len(sourceLine) > characterIndex+1 && sourceLine[characterIndex] == '/' && sourceLine[characterIndex+1] == '/'
-	}
-
-	return false
+	return strings.HasPrefix(trimLeadingWhitespace(sourceLine), "//")
 }
 
 func isPackageLine(trimmedLine string) bool {
-	return len(trimmedLine) > 8 && trimmedLine[:8] == "package "
+	return len(trimmedLine) > 8 && strings.HasPrefix(trimmedLine, "package ")
 }
