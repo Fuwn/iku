@@ -39,12 +39,7 @@ func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
 	}
 	result := formattingEngine.FormatToBytes(events)
 
-	switch filepath.Ext(filename) {
-	case ".js", ".ts", ".jsx", ".tsx":
-		return result, nil
-	}
-
-	if bytes.Equal(normalizedSource, result) || !needsGoNormalization(events, result) {
+	if isEcmaScriptExtension(filepath.Ext(filename)) || bytes.Equal(normalizedSource, result) || !needsGoNormalization(events, result) {
 		return result, nil
 	}
 
@@ -85,10 +80,18 @@ func needsGoNormalization(events []engine.LineEvent, result []byte) bool {
 }
 
 func analyzeSource(source []byte, filename string) ([]byte, []engine.LineEvent, error) {
-	switch filepath.Ext(filename) {
-	case ".js", ".ts", ".jsx", ".tsx":
+	if isEcmaScriptExtension(filepath.Ext(filename)) {
 		return (&EcmaScriptAdapter{}).Analyze(source)
+	}
+
+	return (&GoAdapter{}).Analyze(source)
+}
+
+func isEcmaScriptExtension(extension string) bool {
+	switch extension {
+	case ".js", ".ts", ".jsx", ".tsx":
+		return true
 	default:
-		return (&GoAdapter{}).Analyze(source)
+		return false
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 )
 
 var version = "dev"
@@ -61,35 +60,24 @@ func main() {
 	exitCode := 0
 
 	for _, argumentPath := range flag.Args() {
-		switch fileInfo, err := os.Stat(argumentPath); {
-		case err != nil:
-			fmt.Fprintf(os.Stderr, "iku: %v\n", err)
+		fileInformation, processingError := os.Stat(argumentPath)
+
+		if processingError == nil {
+			if fileInformation.IsDir() {
+				processingError = processDirectory(formatter, argumentPath, &exitCode)
+			} else {
+				processingError = processFilePath(formatter, argumentPath)
+			}
+		}
+
+		if processingError != nil {
+			fmt.Fprintf(os.Stderr, "iku: %v\n", processingError)
 
 			exitCode = 1
-		case fileInfo.IsDir():
-			if err := processDirectory(formatter, argumentPath, &exitCode); err != nil {
-				fmt.Fprintf(os.Stderr, "iku: %v\n", err)
-
-				exitCode = 1
-			}
-		default:
-			if err := processFilePath(formatter, argumentPath, &exitCode); err != nil {
-				fmt.Fprintf(os.Stderr, "iku: %v\n", err)
-
-				exitCode = 1
-			}
 		}
 	}
 
 	os.Exit(exitCode)
-}
-
-var supportedFileExtensions = map[string]bool{
-	".go":  true,
-	".js":  true,
-	".ts":  true,
-	".jsx": true,
-	".tsx": true,
 }
 
 func processDirectory(formatter *Formatter, directoryPath string, exitCode *int) error {
@@ -99,7 +87,9 @@ func processDirectory(formatter *Formatter, directoryPath string, exitCode *int)
 			return err
 		}
 
-		if !dirEntry.IsDir() && supportedFileExtensions[filepath.Ext(currentPath)] {
+		fileExtension := filepath.Ext(currentPath)
+
+		if !dirEntry.IsDir() && (fileExtension == ".go" || isEcmaScriptExtension(fileExtension)) {
 			sourceFilePaths = append(sourceFilePaths, currentPath)
 		}
 
@@ -110,37 +100,31 @@ func processDirectory(formatter *Formatter, directoryPath string, exitCode *int)
 		return err
 	}
 
-	var waitGroup sync.WaitGroup
-	var mutex sync.Mutex
 	semaphore := make(chan struct{}, runtime.NumCPU())
+	fileResults := make(chan error, runtime.NumCPU())
 
 	for _, filePath := range sourceFilePaths {
-		waitGroup.Add(1)
-
-		go func(currentFilePath string) {
-			defer waitGroup.Done()
-
+		go func() {
 			semaphore <- struct{}{}
 
 			defer func() { <-semaphore }()
 
-			if err := processFilePath(formatter, currentFilePath, exitCode); err != nil {
-				mutex.Lock()
-				fmt.Fprintf(os.Stderr, "iku: %v\n", err)
-
-				*exitCode = 1
-
-				mutex.Unlock()
-			}
-		}(filePath)
+			fileResults <- processFilePath(formatter, filePath)
+		}()
 	}
 
-	waitGroup.Wait()
+	for range sourceFilePaths {
+		if err := <-fileResults; err != nil {
+			fmt.Fprintf(os.Stderr, "iku: %v\n", err)
+
+			*exitCode = 1
+		}
+	}
 
 	return nil
 }
 
-func processFilePath(formatter *Formatter, filePath string, _ *int) error {
+func processFilePath(formatter *Formatter, filePath string) error {
 	sourceFile, err := os.Open(filePath)
 
 	if err != nil {
@@ -149,13 +133,7 @@ func processFilePath(formatter *Formatter, filePath string, _ *int) error {
 
 	defer func() { _ = sourceFile.Close() }()
 
-	var outputDestination io.Writer = os.Stdout
-
-	if *writeFlag {
-		outputDestination = nil
-	}
-
-	return processFile(formatter, filePath, sourceFile, outputDestination, true)
+	return processFile(formatter, filePath, sourceFile, os.Stdout, true)
 }
 
 func processFile(formatter *Formatter, filename string, inputReader io.Reader, outputWriter io.Writer, isFile bool) error {
@@ -171,33 +149,22 @@ func processFile(formatter *Formatter, filename string, inputReader io.Reader, o
 		return fmt.Errorf("%s: %v", filename, err)
 	}
 
-	if *listFlag {
-		if !bytes.Equal(sourceContent, formattedResult) {
-			fmt.Println(filename)
-		}
+	writeToFile := *writeFlag && isFile
 
+	if (*listFlag || *diffFlag || writeToFile) && bytes.Equal(sourceContent, formattedResult) {
 		return nil
 	}
 
-	if *diffFlag {
-		if !bytes.Equal(sourceContent, formattedResult) {
-			diffOutput := unifiedDiff(filename, sourceContent, formattedResult)
+	switch {
+	case *listFlag:
+		fmt.Println(filename)
+	case *diffFlag:
+		diffOutput := unifiedDiff(filename, sourceContent, formattedResult)
 
-			_, _ = os.Stdout.Write(diffOutput)
-		}
-
-		return nil
-	}
-
-	if *writeFlag && isFile {
-		if !bytes.Equal(sourceContent, formattedResult) {
-			return os.WriteFile(filename, formattedResult, 0644)
-		}
-
-		return nil
-	}
-
-	if outputWriter != nil {
+		_, _ = os.Stdout.Write(diffOutput)
+	case writeToFile:
+		return os.WriteFile(filename, formattedResult, 0644)
+	case outputWriter != nil:
 		_, err = outputWriter.Write(formattedResult)
 
 		return err
