@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
+	"slices"
 )
 
 var version = "dev"
@@ -174,23 +174,23 @@ func processFile(formatter *Formatter, filename string, inputReader io.Reader, o
 }
 
 func unifiedDiff(filename string, originalSource, formattedSource []byte) []byte {
-	var outputBuffer bytes.Buffer
+	originalLineCount := bytes.Count(originalSource, []byte("\n")) + 1
+	formattedLineCount := bytes.Count(formattedSource, []byte("\n")) + 1
+	output := fmt.Appendf(nil, "--- %s\n+++ %s\n@@ -1,%d +1,%d @@\n", filename, filename, originalLineCount, formattedLineCount)
 
-	fmt.Fprintf(&outputBuffer, "--- %s\n", filename)
-	fmt.Fprintf(&outputBuffer, "+++ %s\n", filename)
+	// Each source gains a prefix on every line and a trailing newline.
+	output = slices.Grow(output, len(originalSource)+len(formattedSource)+originalLineCount+formattedLineCount+2)
 
-	originalSourceLines := strings.Split(string(originalSource), "\n")
-	formattedSourceLines := strings.Split(string(formattedSource), "\n")
-
-	fmt.Fprintf(&outputBuffer, "@@ -1,%d +1,%d @@\n", len(originalSourceLines), len(formattedSourceLines))
-
-	for _, currentLine := range originalSourceLines {
-		fmt.Fprintf(&outputBuffer, "-%s\n", currentLine)
+	writeLines := func(prefix byte, source []byte) {
+		for currentLine := range bytes.SplitSeq(source, []byte("\n")) {
+			output = append(output, prefix)
+			output = append(output, currentLine...)
+			output = append(output, '\n')
+		}
 	}
 
-	for _, currentLine := range formattedSourceLines {
-		fmt.Fprintf(&outputBuffer, "+%s\n", currentLine)
-	}
+	writeLines('-', originalSource)
+	writeLines('+', formattedSource)
 
-	return outputBuffer.Bytes()
+	return output
 }

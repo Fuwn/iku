@@ -75,3 +75,16 @@ func BenchmarkFormatArithmetic(b *testing.B) {
 		_, _ = formatter.Format(source, "example.js")
 	}
 }
+
+func BenchmarkUnifiedDiff(b *testing.B) {
+	for _, lineCount := range []int{1, 1000} {
+		b.Run(strconv.Itoa(lineCount), func(b *testing.B) {
+			original := []byte(strings.Repeat("first()\n", lineCount))
+			formatted := []byte(strings.Repeat("first()\n\n", lineCount))
+
+			for b.Loop() {
+				_ = unifiedDiff("example.go", original, formatted)
+			}
+		})
+	}
+}
