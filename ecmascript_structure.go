@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"github.com/Fuwn/iku/engine"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 type ecmaScriptDelimiter struct {
@@ -66,22 +69,25 @@ func ecmaScriptBraceIsBody(prefix string, statementStart int, events []engine.Li
 }
 
 func (state *ecmaScriptLexicalState) maskLiteralsAndComments(sourceLine string) string {
+	if state.insideBlockComment {
+		commentEnd := strings.Index(sourceLine, "*/")
+
+		if commentEnd < 0 {
+			return ""
+		}
+
+		sourceLine = sourceLine[commentEnd+2:]
+		state.insideBlockComment = false
+	}
+
+	if state.quote == 0 && !strings.ContainsAny(sourceLine, "\"'`/") {
+		return sourceLine
+	}
+
 	code := []byte(sourceLine)
 
 	for characterIndex := 0; characterIndex < len(code); characterIndex++ {
 		character := code[characterIndex]
-
-		if state.insideBlockComment {
-			code[characterIndex] = ' '
-
-			if character == '*' && characterIndex+1 < len(code) && code[characterIndex+1] == '/' {
-				code[characterIndex+1] = ' '
-				characterIndex++
-				state.insideBlockComment = false
-			}
-
-			continue
-		}
 
 		if state.quote != 0 {
 			code[characterIndex] = ' '
@@ -104,18 +110,27 @@ func (state *ecmaScriptLexicalState) maskLiteralsAndComments(sourceLine string) 
 			nextCharacter := code[characterIndex+1]
 
 			if nextCharacter == '/' {
-				for remainingIndex := characterIndex; remainingIndex < len(code); remainingIndex++ {
-					code[remainingIndex] = ' '
-				}
-
-				break
+				return string(code[:characterIndex])
 			}
 
 			if nextCharacter == '*' {
 				code[characterIndex] = ' '
 				code[characterIndex+1] = ' '
-				characterIndex++
-				state.insideBlockComment = true
+
+				for characterIndex += len("/*"); characterIndex < len(code); characterIndex++ {
+					character := code[characterIndex]
+
+					code[characterIndex] = ' '
+
+					if character == '*' && characterIndex+1 < len(code) && code[characterIndex+1] == '/' {
+						code[characterIndex+1] = ' '
+						characterIndex++
+
+						break
+					}
+				}
+
+				state.insideBlockComment = characterIndex >= len(code)
 
 				continue
 			}
@@ -124,7 +139,7 @@ func (state *ecmaScriptLexicalState) maskLiteralsAndComments(sourceLine string) 
 		if character == '\'' || character == '"' || character == '`' {
 			state.quote = character
 			code[characterIndex] = '0'
-		} else if character == '/' && ecmaScriptStartsRegex(string(code[:characterIndex])) {
+		} else if character == '/' && ecmaScriptStartsRegex(code[:characterIndex]) {
 			state.quote = '/'
 			code[characterIndex] = '0'
 		}
@@ -133,22 +148,23 @@ func (state *ecmaScriptLexicalState) maskLiteralsAndComments(sourceLine string) 
 	return string(code)
 }
 
-func ecmaScriptStartsRegex(prefix string) bool {
-	prefix = strings.TrimSpace(prefix)
+func ecmaScriptStartsRegex(prefix []byte) bool {
+	prefix = bytes.TrimSpace(prefix)
 
-	if prefix == "" || strings.ContainsRune("=([{,:;!?&|+-*%^~<>", rune(prefix[len(prefix)-1])) {
+	if len(prefix) == 0 || strings.ContainsRune("=([{,:;!?&|+-*%^~<>", rune(prefix[len(prefix)-1])) {
 		return true
 	}
 
-	words := strings.Fields(prefix)
-	lastWord := words[len(words)-1]
+	// Check suffixes to avoid rescanning the expression for every slash.
+	for _, keyword := range []string{"return", "throw", "yield", "case", "typeof", "void", "delete"} {
+		if bytes.HasSuffix(prefix, []byte(keyword)) {
+			precedingCharacter, _ := utf8.DecodeLastRune(prefix[:len(prefix)-len(keyword)])
 
-	switch lastWord {
-	case "return", "throw", "yield", "case", "typeof", "void", "delete":
-		return true
-	default:
-		return false
+			return len(prefix) == len(keyword) || unicode.IsSpace(precedingCharacter)
+		}
 	}
+
+	return false
 }
 
 func ecmaScriptHasAssignment(code string) bool {

@@ -1,9 +1,35 @@
 package main
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
+
+func BenchmarkFormatEcmaScript(b *testing.B) {
+	for _, functionCount := range []int{1, 100} {
+		b.Run(strconv.Itoa(functionCount), func(b *testing.B) {
+			source := []byte(strings.Repeat(`function example() {
+  const options = { ready: true };
+  let count = 1;
+  count += 1;
+  first(() => {
+    run(options);
+  });
+  second(/[}=/]/);
+  return count;
+}
+`, functionCount))
+			formatter := &Formatter{CommentMode: CommentsFollow}
+
+			b.SetBytes(int64(len(source)))
+
+			for b.Loop() {
+				_, _ = formatter.Format(source, "example.js")
+			}
+		})
+	}
+}
 
 func BenchmarkFormatNested(b *testing.B) {
 	source := []byte("package example\nfunc example() {\n" + strings.Repeat("if ready {\n", 20) + "run()\n" + strings.Repeat("}\n", 21))
@@ -38,5 +64,14 @@ func BenchmarkFormatVerbatim(b *testing.B) {
 				_, _ = formatter.Format(source, testCase.filename)
 			}
 		})
+	}
+}
+
+func BenchmarkFormatArithmetic(b *testing.B) {
+	source := []byte(strings.Repeat("function example(values) {\n  const first = values.total / values.count;\n  const second = first / 2;\n  return /item/.test(values.name);\n}\n", 100))
+	formatter := &Formatter{CommentMode: CommentsFollow}
+
+	for b.Loop() {
+		_, _ = formatter.Format(source, "example.js")
 	}
 }
