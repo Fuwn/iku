@@ -47,10 +47,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	formattingEngine, validationError := loadConfiguration().formattingEngine()
+	formattingEngine, configurationError := loadFormattingEngine()
 
-	if validationError != nil {
-		fmt.Fprintf(os.Stderr, "iku: %v\n", validationError)
+	if configurationError != nil {
+		fmt.Fprintf(os.Stderr, "iku: %v\n", configurationError)
 		os.Exit(2)
 	}
 

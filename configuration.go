@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Fuwn/iku/engine"
+	"io/fs"
 	"os"
 	"strings"
 )
@@ -30,20 +33,39 @@ func (configuration Configuration) formattingEngine() (engine.Engine, error) {
 	return formattingEngine, nil
 }
 
-func loadConfiguration() Configuration {
-	configuration := Configuration{GroupSingleLineFunctions: true}
-
+func loadFormattingEngine() (engine.Engine, error) {
 	for _, fileName := range []string{".iku.json", "iku.json"} {
 		fileData, readError := os.ReadFile(fileName)
 
-		if readError != nil {
+		if errors.Is(readError, fs.ErrNotExist) {
 			continue
 		}
 
-		_ = json.Unmarshal(fileData, &configuration)
+		if readError != nil {
+			return engine.Engine{}, readError
+		}
 
-		break
+		formattingEngine, parseError := parseFormattingEngine(fileData)
+
+		if parseError != nil {
+			return engine.Engine{}, fmt.Errorf("%s: %w", fileName, parseError)
+		}
+
+		return formattingEngine, nil
 	}
 
-	return configuration
+	return engine.Engine{}, nil
+}
+
+func parseFormattingEngine(fileData []byte) (engine.Engine, error) {
+	configuration := Configuration{GroupSingleLineFunctions: true}
+	decoder := json.NewDecoder(bytes.NewReader(fileData))
+
+	decoder.DisallowUnknownFields()
+
+	if decodingError := decoder.Decode(&configuration); decodingError != nil {
+		return engine.Engine{}, decodingError
+	}
+
+	return configuration.formattingEngine()
 }

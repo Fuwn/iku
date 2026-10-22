@@ -85,7 +85,7 @@ Iku looks for `.iku.json` or `iku.json` in the current working directory.
 }
 ```
 
-All fields are optional. Omitted fields use their defaults.
+All fields are optional. Omitted fields use their defaults; unknown fields and malformed JSON are reported as errors.
 
 ### `comment_mode`
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"go/format"
 	"strings"
 	"testing"
@@ -613,13 +612,7 @@ func TestFormatSingleLineFunctionConfiguration(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		configuration := Configuration{GroupSingleLineFunctions: true}
-
-		if decodingError := json.Unmarshal([]byte(testCase.configuration), &configuration); decodingError != nil {
-			t.Fatal(decodingError)
-		}
-
-		formattingEngine, configurationError := configuration.formattingEngine()
+		formattingEngine, configurationError := parseFormattingEngine([]byte(testCase.configuration))
 
 		if configurationError != nil {
 			t.Fatal(configurationError)
