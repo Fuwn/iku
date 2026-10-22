@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/Fuwn/iku/engine"
 	"go/format"
 	"path/filepath"
@@ -12,11 +13,16 @@ type Formatter struct {
 }
 
 func (formatter *Formatter) Format(source []byte, filename string) ([]byte, error) {
-	if isEcmaScriptExtension(filepath.Ext(filename)) {
-		return formatter.Engine.Format(analyzeEcmaScript(source)), nil
-	}
+	extension := filepath.Ext(filename)
 
-	return formatter.formatGo(source)
+	switch {
+	case isEcmaScriptExtension(extension):
+		return formatter.Engine.Format(analyzeEcmaScript(source)), nil
+	case extension == ".go" || extension == "":
+		return formatter.formatGo(source)
+	default:
+		return nil, fmt.Errorf("unsupported file extension %q", extension)
+	}
 }
 
 func (formatter *Formatter) formatGo(source []byte) ([]byte, error) {

@@ -320,3 +320,9 @@ func TestFormatSingleLineFunctionConfiguration(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatRejectsUnsupportedExtension(t *testing.T) {
+	if _, formattingError := (&Formatter{}).Format([]byte("print(1)\n"), "example.py"); formattingError == nil {
+		t.Fatal("Expected an unsupported extension error.")
+	}
+}
