@@ -2,7 +2,6 @@
 
 > Grammar-Aware Code Formatter: Structure through separation
 
-
 Let your code breathe!
 
 Iku is a grammar-based formatter that enforces consistent blank-line placement by statement and declaration type. It supports Go, JavaScript, TypeScript, JSX, and TSX.
@@ -23,7 +22,7 @@ Code structure should be visually apparent from its formatting. Iku groups state
 
 ## How It Works
 
-For Go files, Iku applies standard Go formatting (via [go/format](https://pkg.go.dev/go/format)), classifies grammatical roles through the AST, and applies its blank-line rules. Layout changes involving joined groups, single-line definitions, or comments receive another Go-formatting pass to keep alignment and required build-tag separators intact.
+For Go files, Iku applies standard Go formatting (via [go/format](https://pkg.go.dev/go/format)), classifies grammatical roles through the AST, and applies its blank-line rules. When its blank-line changes alter the layout, Iku formats the result again to keep alignment and required build-tag separators intact.
 
 For JavaScript and TypeScript files (`.js`, `.ts`, `.jsx`, `.tsx`), Iku uses a heuristic line-based analyser that distinguishes declarations, assignments, and calls, and tracks delimiters and bodies. Strings, template literals, comments, and regular-expression literals are excluded from structural classification. This is not a complete JavaScript or TypeScript syntax parser.
 
@@ -63,7 +62,7 @@ iku -l .
 iku -d file.go
 ```
 
-Directory walks skip hidden directories and `node_modules`.
+Directory walks skip hidden directories and `node_modules`. Explicit paths with other extensions are rejected, and standard input is formatted as Go.
 
 ### Flags
 
@@ -71,7 +70,7 @@ Directory walks skip hidden directories and `node_modules`.
 |------|-------------|
 | `-w` | Write result to file instead of stdout |
 | `-l` | List files whose formatting differs |
-| `-d` | Display diffs instead of rewriting |
+| `-d` | Display unified diffs of formatting changes |
 | `--version` | Print version |
 
 ## Configuration
@@ -168,8 +167,8 @@ Notice how:
 - Reassignments such as `x = 2` have a different role from binding declarations
 - `defer` statements stay grouped together
 - Each `if` statement gets a blank line before it (scoped statement)
-- `go worker()` (`GoStmt`) is separated from the `if` above
-- `return` (`ReturnStmt`) is separated from the `go` statement
+- `go worker()` is separated from the `if` above
+- `return` is separated from the `go` statement
 
 ### Top-Level Declarations
 
@@ -281,5 +280,5 @@ Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
 [MIT license](LICENSE-MIT) at your option.
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in this crate by you, as defined in the Apache-2.0 license, shall
+for inclusion in this project by you, as defined in the Apache-2.0 license, shall
 be dual licensed as above, without any additional terms or conditions.

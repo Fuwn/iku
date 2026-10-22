@@ -31,7 +31,7 @@ type fileResult struct {
 func main() {
 	writeFlag := flag.Bool("w", false, "write result to (source) file instead of stdout")
 	listFlag := flag.Bool("l", false, "list files whose formatting differs from iku's")
-	diffFlag := flag.Bool("d", false, "display diffs instead of rewriting files")
+	diffFlag := flag.Bool("d", false, "display unified diffs of formatting changes")
 	versionFlag := flag.Bool("version", false, "print version")
 
 	flag.Usage = func() {
