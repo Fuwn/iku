@@ -55,7 +55,7 @@ func (e *Engine) FormatToString(events []LineEvent) string {
 			sameStatementType := currentStatementType == previousStatementType
 			groupedBindings := sameStatementType && currentStatementType == "binding" && !currentIsTopLevel && !previousWasTopLevel
 			groupedCalls := sameStatementType && currentStatementType == "call"
-			isDefinition := currentStatementType == "function" || currentStatementType == "func" || currentStatementType == "type"
+			isDefinition := currentStatementType == "function" || currentStatementType == "type"
 
 			if currentIsTopLevel && previousWasTopLevel && !sameStatementType {
 				needsBlankLine = true
@@ -97,7 +97,7 @@ func (e *Engine) FormatToString(events []LineEvent) string {
 			previousStatementType = event.StatementType
 			previousWasTopLevel = event.IsTopLevel
 			previousWasScoped = event.IsScoped
-			previousWasSingleLineScope = event.IsSingleLineScope && (event.InRawString || event.IsScoped)
+			previousWasSingleLineScope = event.IsSingleLineScope && event.IsScoped
 		} else if !event.InRawString && currentStatementType != "" {
 			previousStatementType = currentStatementType
 			previousWasTopLevel = false

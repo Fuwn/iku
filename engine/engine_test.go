@@ -59,7 +59,7 @@ func TestEngineStatementTypeTransition(t *testing.T) {
 
 func TestEngineSuppressAfterOpenBrace(t *testing.T) {
 	events := []LineEvent{
-		{Content: "func main() {", TrimmedContent: "func main() {", HasASTInfo: true, StatementType: "func", IsScoped: true, IsTopLevel: true, IsStartLine: true, IsOpeningBrace: true},
+		{Content: "func main() {", TrimmedContent: "func main() {", HasASTInfo: true, StatementType: "function", IsScoped: true, IsTopLevel: true, IsStartLine: true, IsOpeningBrace: true},
 		{Content: "\tif true {", TrimmedContent: "if true {", HasASTInfo: true, StatementType: "*ast.IfStmt", IsScoped: true, IsStartLine: true, IsOpeningBrace: true},
 		{Content: "\t\tx := 1", TrimmedContent: "x := 1", HasASTInfo: true, StatementType: "*ast.AssignStmt"},
 		{Content: "\t}", TrimmedContent: "}", IsClosingBrace: true},
@@ -156,8 +156,8 @@ func TestEnginePackageDeclaration(t *testing.T) {
 	events := []LineEvent{
 		{Content: "package main", TrimmedContent: "package main", IsPackageDecl: true},
 		{Content: "", TrimmedContent: "", IsBlank: true},
-		{Content: "func main() {", TrimmedContent: "func main() {", HasASTInfo: true, StatementType: "func", IsTopLevel: true, IsScoped: true, IsStartLine: true, IsOpeningBrace: true},
-		{Content: "}", TrimmedContent: "}", IsClosingBrace: true, HasASTInfo: true, StatementType: "func", IsTopLevel: true, IsScoped: true},
+		{Content: "func main() {", TrimmedContent: "func main() {", HasASTInfo: true, StatementType: "function", IsTopLevel: true, IsScoped: true, IsStartLine: true, IsOpeningBrace: true},
+		{Content: "}", TrimmedContent: "}", IsClosingBrace: true, HasASTInfo: true, StatementType: "function", IsTopLevel: true, IsScoped: true},
 	}
 	formattingEngine := &Engine{CommentMode: CommentsFollow}
 	result := formatResult(formattingEngine, events)
