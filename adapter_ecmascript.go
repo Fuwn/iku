@@ -58,13 +58,13 @@ func analyzeEcmaScript(source []byte) []engine.LineEvent {
 			statementStart = pendingBody
 		}
 
-		event.IsClosingBrace = isClosingBrace(code) || strings.HasPrefix(code, "]")
+		event.IsClosingBrace = isClosingBrace(code) || strings.HasPrefix(code, "]") || strings.HasPrefix(code, ">")
 		event.IsOpeningBrace = isOpeningBrace(code) || strings.HasSuffix(code, "[")
 		event.IsCaseLabel = ecmaScriptIsCaseLabel(code)
 
 		continuedBody := strings.HasPrefix(code, "{") && statementStart >= 0 && events[statementStart].IsScoped
 		isContinuationLine := wasInsideLiteral || insideExpression || previousEndedWithContinuation || continuedBody || pendingBody >= 0 ||
-			strings.HasPrefix(code, ".") || strings.HasPrefix(code, "?.")
+			ecmaScriptLineStartsContinuation(code)
 
 		if !isContinuationLine && !event.IsClosingBrace && !event.IsCaseLabel {
 			statementType, isScoped, isContinuation := classifyEcmaScriptStatement(code)
@@ -165,7 +165,7 @@ func analyzeEcmaScript(source []byte) []engine.LineEvent {
 			}
 		}
 
-		previousEndedWithContinuation = ecmaScriptLineEndsContinuation(code)
+		previousEndedWithContinuation = !event.IsCaseLabel && ecmaScriptLineEndsContinuation(code)
 		previousCode = code
 	}
 
@@ -228,13 +228,20 @@ func ecmaScriptLineEndsContinuation(trimmedLine string) bool {
 	}
 
 	switch trimmedLine[len(trimmedLine)-1] {
-	case ',', '[', '(', '=':
+	case ',', '[', '(', '<', '=', '?', ':', '&', '|', '^', '%', '*', '/':
 		return true
+	case '+', '-':
+		return !strings.HasSuffix(trimmedLine, "++") && !strings.HasSuffix(trimmedLine, "--")
 	case '>':
 		return strings.HasSuffix(trimmedLine, "=>") || strings.HasPrefix(trimmedLine, "<")
 	default:
 		return false
 	}
+}
+
+// Member access, ternary branches, and logical or type operators can lead a wrapped line.
+func ecmaScriptLineStartsContinuation(trimmedLine string) bool {
+	return trimmedLine != "" && strings.IndexByte(".?:|&", trimmedLine[0]) >= 0
 }
 
 func ecmaScriptHasFunctionKeyword(code string) bool {

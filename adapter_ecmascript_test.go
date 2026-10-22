@@ -4,6 +4,30 @@ import "testing"
 
 var ecmaScriptFormattingCases = []formattingCase{
 	{
+		name:     "trailing operators continue statements",
+		filename: "example.ts",
+		source:   "const total = first +\n  second;\nconst ready = first &&\n  second;\nconst value = ready ?\n  first :\n  second;\nrun();\n",
+		expected: "const total = first +\n  second;\nconst ready = first &&\n  second;\nconst value = ready ?\n  first :\n  second;\n\nrun();\n",
+	},
+	{
+		name:     "leading operators continue statements",
+		filename: "example.ts",
+		source:   "const name = user\n  ?? fallback;\nconst label = ready\n  ? \"yes\"\n  : \"no\";\nrun();\n",
+		expected: "const name = user\n  ?? fallback;\nconst label = ready\n  ? \"yes\"\n  : \"no\";\n\nrun();\n",
+	},
+	{
+		name:     "wrapped type unions and arguments stay together",
+		filename: "example.ts",
+		source:   "type Shape =\n  | Circle\n  | Square;\ntype Names = Autocomplete<\n  | \"first\"\n  | \"second\"\n>;\nlet count = 0;\n",
+		expected: "type Shape =\n  | Circle\n  | Square;\ntype Names = Autocomplete<\n  | \"first\"\n  | \"second\"\n>;\n\nlet count = 0;\n",
+	},
+	{
+		name:     "postfix updates and case labels end continuations",
+		filename: "example.ts",
+		source:   "count++;\nrun();\nswitch (count) {\n  case 1:\n    first = 1;\n    run();\n}\n",
+		expected: "count++;\n\nrun();\n\nswitch (count) {\n  case 1:\n    first = 1;\n\n    run();\n}\n",
+	},
+	{
 		name:     "blank lines around if block",
 		filename: "example.ts",
 		source: `const x = 1;
