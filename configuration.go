@@ -3,34 +3,35 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Fuwn/iku/engine"
 	"os"
 	"strings"
 )
 
 type Configuration struct {
-	GroupSingleLineFunctions *bool  `json:"group_single_line_functions"`
+	GroupSingleLineFunctions bool   `json:"group_single_line_functions"`
 	CommentMode              string `json:"comment_mode"`
 }
 
-func (configuration Configuration) groupSingleLineFunctions() bool {
-	return configuration.GroupSingleLineFunctions == nil || *configuration.GroupSingleLineFunctions
-}
+func (configuration Configuration) formattingEngine() (engine.Engine, error) {
+	formattingEngine := engine.Engine{SeparateSingleLineDefinitions: !configuration.GroupSingleLineFunctions}
 
-func (configuration Configuration) commentMode() (CommentMode, error) {
 	switch strings.ToLower(configuration.CommentMode) {
 	case "", "follow":
-		return CommentsFollow, nil
+		formattingEngine.CommentMode = engine.CommentsFollow
 	case "precede":
-		return CommentsPrecede, nil
+		formattingEngine.CommentMode = engine.CommentsPrecede
 	case "standalone":
-		return CommentsStandalone, nil
+		formattingEngine.CommentMode = engine.CommentsStandalone
 	default:
-		return 0, fmt.Errorf("invalid comment_mode: %q (use follow, precede, or standalone)", configuration.CommentMode)
+		return formattingEngine, fmt.Errorf("invalid comment_mode: %q (use follow, precede, or standalone)", configuration.CommentMode)
 	}
+
+	return formattingEngine, nil
 }
 
 func loadConfiguration() Configuration {
-	var configuration Configuration
+	configuration := Configuration{GroupSingleLineFunctions: true}
 
 	for _, fileName := range []string{".iku.json", "iku.json"} {
 		fileData, readError := os.ReadFile(fileName)

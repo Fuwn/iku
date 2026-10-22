@@ -9,9 +9,7 @@ import (
 	"strings"
 )
 
-type GoAdapter struct{}
-
-func (a *GoAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, error) {
+func analyzeGo(source []byte) ([]byte, []engine.LineEvent, error) {
 	formattedSource, err := format.Source(source)
 
 	if err != nil {

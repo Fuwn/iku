@@ -33,15 +33,14 @@ func main() {
 		os.Exit(0)
 	}
 
-	configuration := loadConfiguration()
-	commentMode, validationError := configuration.commentMode()
+	formattingEngine, validationError := loadConfiguration().formattingEngine()
 
 	if validationError != nil {
 		fmt.Fprintf(os.Stderr, "iku: %v\n", validationError)
 		os.Exit(2)
 	}
 
-	formatter := &Formatter{CommentMode: commentMode, Configuration: configuration}
+	formatter := &Formatter{Engine: formattingEngine}
 
 	if flag.NArg() == 0 {
 		if *writeFlag {

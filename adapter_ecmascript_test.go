@@ -394,15 +394,7 @@ const x = Direction.Up;
 func TestEcmaScriptAdapter(t *testing.T) {
 	for _, testCase := range ecmaScriptTestCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			adapter := &EcmaScriptAdapter{}
-			_, events, err := adapter.Analyze([]byte(testCase.source))
-
-			if err != nil {
-				t.Fatalf("adapter error: %v", err)
-			}
-
-			formattingEngine := &engine.Engine{CommentMode: engine.CommentsFollow}
-			result := string(formattingEngine.Format(events))
+			result := string((&engine.Engine{}).Format(analyzeEcmaScript([]byte(testCase.source))))
 
 			if result != testCase.expected {
 				t.Errorf("mismatch\ngot:\n%s\nwant:\n%s", result, testCase.expected)

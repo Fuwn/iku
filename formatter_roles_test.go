@@ -261,7 +261,7 @@ func TestFormatStatementRoles(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			formatter := &Formatter{CommentMode: CommentsFollow}
+			formatter := &Formatter{}
 			result, formattingError := formatter.Format([]byte(testCase.source), testCase.filename)
 
 			if formattingError != nil {
@@ -296,13 +296,19 @@ func TestFormatSingleLineFunctionConfiguration(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		var configuration Configuration
+		configuration := Configuration{GroupSingleLineFunctions: true}
 
 		if decodingError := json.Unmarshal([]byte(testCase.configuration), &configuration); decodingError != nil {
 			t.Fatal(decodingError)
 		}
 
-		formatter := &Formatter{Configuration: configuration}
+		formattingEngine, configurationError := configuration.formattingEngine()
+
+		if configurationError != nil {
+			t.Fatal(configurationError)
+		}
+
+		formatter := &Formatter{Engine: formattingEngine}
 		result, formattingError := formatter.Format([]byte("package example\n\nfunc first() {}\nfunc second() {}\n"), "example.go")
 
 		if formattingError != nil {

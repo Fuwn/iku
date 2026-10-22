@@ -5,9 +5,7 @@ import (
 	"strings"
 )
 
-type EcmaScriptAdapter struct{}
-
-func (a *EcmaScriptAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, error) {
+func analyzeEcmaScript(source []byte) []engine.LineEvent {
 	remainingSource := string(source)
 	events := make([]engine.LineEvent, strings.Count(remainingSource, "\n")+1)
 	lexicalState := ecmaScriptLexicalState{}
@@ -163,7 +161,7 @@ func (a *EcmaScriptAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, 
 		previousCode = code
 	}
 
-	return source, events, nil
+	return events
 }
 
 func classifyEcmaScriptStatement(trimmedLine string) (string, bool, bool) {

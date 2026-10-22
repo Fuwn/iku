@@ -7,46 +7,33 @@ import (
 	"path/filepath"
 )
 
-type CommentMode = engine.CommentMode
-
-const (
-	CommentsFollow     = engine.CommentsFollow
-	CommentsPrecede    = engine.CommentsPrecede
-	CommentsStandalone = engine.CommentsStandalone
-)
-
 type Formatter struct {
-	CommentMode   CommentMode
-	Configuration Configuration
+	Engine engine.Engine
 }
 
-func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
-	normalizedSource, events, err := analyzeSource(source, filename)
+func (formatter *Formatter) Format(source []byte, filename string) ([]byte, error) {
+	if isEcmaScriptExtension(filepath.Ext(filename)) {
+		return formatter.Engine.Format(analyzeEcmaScript(source)), nil
+	}
+
+	return formatter.formatGo(source)
+}
+
+func (formatter *Formatter) formatGo(source []byte) ([]byte, error) {
+	normalizedSource, events, err := analyzeGo(source)
 
 	if err != nil {
 		return nil, err
 	}
 
-	formattingEngine := &engine.Engine{
-		CommentMode:           f.CommentMode,
-		GroupSingleLineScopes: f.Configuration.groupSingleLineFunctions(),
-	}
-	result := formattingEngine.Format(events)
+	result := formatter.Engine.Format(events)
 
-	if isEcmaScriptExtension(filepath.Ext(filename)) || bytes.Equal(normalizedSource, result) {
+	if bytes.Equal(normalizedSource, result) {
 		return result, nil
 	}
 
 	// Regrouping declarations can change Go's column alignment and build-tag spacing.
 	return format.Source(result)
-}
-
-func analyzeSource(source []byte, filename string) ([]byte, []engine.LineEvent, error) {
-	if isEcmaScriptExtension(filepath.Ext(filename)) {
-		return (&EcmaScriptAdapter{}).Analyze(source)
-	}
-
-	return (&GoAdapter{}).Analyze(source)
 }
 
 func isEcmaScriptExtension(extension string) bool {

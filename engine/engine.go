@@ -9,8 +9,8 @@ const (
 )
 
 type Engine struct {
-	CommentMode           CommentMode
-	GroupSingleLineScopes bool
+	CommentMode                   CommentMode
+	SeparateSingleLineDefinitions bool
 }
 
 func (e *Engine) Format(events []LineEvent) []byte {
@@ -52,7 +52,7 @@ func (e *Engine) Format(events []LineEvent) []byte {
 			} else if groupedBindings || groupedCalls {
 				needsBlankLine = false
 			} else if event.HasASTInfo && (currentIsScoped || previousWasScoped) {
-				groupedDefinitions := e.GroupSingleLineScopes && isDefinition && currentIsSingleLineScope && previousWasSingleLineScope && sameStatementType
+				groupedDefinitions := !e.SeparateSingleLineDefinitions && isDefinition && currentIsSingleLineScope && previousWasSingleLineScope && sameStatementType
 
 				needsBlankLine = !groupedDefinitions
 			} else if event.StatementType != "" && previousStatementType != "" && !sameStatementType {

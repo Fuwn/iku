@@ -23,7 +23,7 @@ func main() {
 	y := 2
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -58,7 +58,7 @@ func main() {
 	z := 3
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -97,7 +97,7 @@ func main() {
 	}
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -132,7 +132,7 @@ func main() {
 	z := 2
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -169,7 +169,7 @@ func main() {
 	z := 3
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -203,7 +203,7 @@ func bar() {
 	y := 2
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -231,7 +231,7 @@ type Foo struct {
 
 var x = 1
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -271,7 +271,7 @@ func main() {
 	return
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -307,7 +307,7 @@ func main() {
 	}
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -345,7 +345,7 @@ func main() {
 	}
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -373,7 +373,7 @@ func main() {
 	fileInfo, err := file.Stat()
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -412,7 +412,7 @@ func main() {
 	}
 }
 `
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 	formattedResult, err := formatter.Format([]byte(inputSource), "test.go")
 
 	if err != nil {
@@ -435,7 +435,7 @@ func main() {
 	a := 4
 }
 `)
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 
 	for b.Loop() {
 		_, _ = formatter.Format(inputSource, "test.go")
@@ -459,7 +459,7 @@ func BenchmarkFormatLarge(b *testing.B) {
 	}
 
 	inputSource := []byte(sourceBuilder.String())
-	formatter := &Formatter{CommentMode: CommentsFollow}
+	formatter := &Formatter{}
 
 	for b.Loop() {
 		_, _ = formatter.Format(inputSource, "test.go")
