@@ -51,7 +51,3 @@ func isCaseLabel(sourceLine string) bool {
 
 	return len(content) < len(sourceLine) && strings.HasSuffix(trimTrailingWhitespace(content), ":")
 }
-
-func isCommentOnly(sourceLine string) bool {
-	return strings.HasPrefix(trimLeadingWhitespace(sourceLine), "//")
-}
