@@ -4,7 +4,6 @@ import (
 	"github.com/Fuwn/iku/engine"
 	"go/ast"
 	"go/token"
-	"reflect"
 )
 
 func classifyGoGeneralDeclaration(tokenFile *token.File, generalDeclaration *ast.GenDecl, isSingleLine bool) (string, bool) {
@@ -48,25 +47,15 @@ func containsMultilineBody(tokenFile *token.File, node ast.Node) bool {
 func indexGoStatements(tokenFileSet *token.FileSet, parsedFile *ast.File, events []engine.LineEvent) {
 	tokenFile := tokenFileSet.File(parsedFile.Pos())
 
-	if tokenFile == nil {
-		return
-	}
-
 	for _, declaration := range parsedFile.Decls {
 		startLine := tokenFile.PositionFor(declaration.Pos(), false).Line
 		endLine := tokenFile.PositionFor(declaration.End(), false).Line
 		isSingleLine := startLine == endLine
-		statementType := ""
-		isScoped := false
+		statementType := "function"
+		isScoped := true
 
-		switch typedDeclaration := declaration.(type) {
-		case *ast.GenDecl:
-			statementType, isScoped = classifyGoGeneralDeclaration(tokenFile, typedDeclaration, isSingleLine)
-		case *ast.FuncDecl:
-			statementType = "function"
-			isScoped = true
-		default:
-			statementType = reflect.TypeOf(declaration).String()
+		if generalDeclaration, isGeneralDeclaration := declaration.(*ast.GenDecl); isGeneralDeclaration {
+			statementType, isScoped = classifyGoGeneralDeclaration(tokenFile, generalDeclaration, isSingleLine)
 		}
 
 		events[startLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsTopLevel: true, IsScoped: isScoped, IsSingleLineScope: isSingleLine, IsStartLine: true}
@@ -104,9 +93,7 @@ func indexGoStatementList(tokenFile *token.File, statements []ast.Stmt, events [
 
 		switch typedStatement := statement.(type) {
 		case *ast.DeclStmt:
-			if generalDeclaration, isGeneralDeclaration := typedStatement.Decl.(*ast.GenDecl); isGeneralDeclaration {
-				statementType, isScoped = classifyGoGeneralDeclaration(tokenFile, generalDeclaration, isSingleLine)
-			}
+			statementType, isScoped = classifyGoGeneralDeclaration(tokenFile, typedStatement.Decl.(*ast.GenDecl), isSingleLine)
 		case *ast.AssignStmt:
 			statementType = "assignment"
 			isScoped = !isSingleLine && containsMultilineBody(tokenFile, typedStatement)
@@ -122,13 +109,37 @@ func indexGoStatementList(tokenFile *token.File, statements []ast.Stmt, events [
 			}
 		case *ast.IncDecStmt:
 			statementType = "assignment"
-		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt,
-			*ast.TypeSwitchStmt, *ast.SelectStmt, *ast.BlockStmt:
+		case *ast.ReturnStmt:
+			statementType = "return"
+		case *ast.DeferStmt:
+			statementType = "defer"
+		case *ast.GoStmt:
+			statementType = "go"
+		case *ast.SendStmt:
+			statementType = "send"
+		case *ast.BranchStmt:
+			statementType = "branch"
+		case *ast.LabeledStmt:
+			statementType = "label"
+		case *ast.CaseClause, *ast.CommClause:
+			statementType = "case"
+		case *ast.EmptyStmt:
+			statementType = "empty"
+		case *ast.IfStmt:
+			statementType = "if"
 			isScoped = true
-		}
-
-		if statementType == "" {
-			statementType = reflect.TypeOf(statement).String()
+		case *ast.ForStmt, *ast.RangeStmt:
+			statementType = "for"
+			isScoped = true
+		case *ast.SwitchStmt, *ast.TypeSwitchStmt:
+			statementType = "switch"
+			isScoped = true
+		case *ast.SelectStmt:
+			statementType = "select"
+			isScoped = true
+		case *ast.BlockStmt:
+			statementType = "block"
+			isScoped = true
 		}
 
 		if !events[startLine-1].IsStartLine {
