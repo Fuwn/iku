@@ -18,17 +18,10 @@ tasks:
     generates:
       - ./{{.BINARY}}
 
-  run:
-    desc: Build and run the application
-    deps: [build]
-    cmds:
-      - ./{{.BINARY}}
-
   install:
     desc: Install the binary to GOPATH/bin
-    deps: [build]
     cmds:
-      - cp {{.BINARY}} ${GOPATH:-~/go}/bin/{{.BINARY}}
+      - go install -ldflags="-s -w" .
 
   clean:
     desc: Remove build artifacts
@@ -47,16 +40,11 @@ tasks:
       - go test -bench=. -benchmem ./...
 
   fmt:
-    desc: Format code
+    desc: Format code with the current checkout
     cmds:
-      - iku -w . || go fmt ./...
+      - go run . -w .
 
   lint:
     desc: Run linter
     cmds:
       - golangci-lint run
-
-  dev:
-    desc: Build and run in development mode
-    cmds:
-      - go run .
