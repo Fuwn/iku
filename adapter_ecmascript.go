@@ -13,163 +13,205 @@ type ecmaScriptDelimiter struct {
 	currentStatement int
 }
 
+type ecmaScriptAnalyzer struct {
+	events                        []engine.LineEvent
+	lexicalState                  ecmaScriptLexicalState
+	delimiters                    []ecmaScriptDelimiter
+	rootStatement                 int
+	pendingBody                   int
+	previousCode                  string
+	previousEndedWithContinuation bool
+}
+
 func analyzeEcmaScript(source []byte) []engine.LineEvent {
 	remainingSource := string(source)
-	events := make([]engine.LineEvent, strings.Count(remainingSource, "\n")+1)
-	lexicalState := ecmaScriptLexicalState{}
-	delimiters := []ecmaScriptDelimiter{}
-	rootStatement := -1
-	pendingBody := -1
-	previousCode := ""
-	previousEndedWithContinuation := false
-
-	for lineIndex := range events {
-		currentLine, nextSource, _ := strings.Cut(remainingSource, "\n")
-		wasInsideLiteral := lexicalState.quote != 0
-		wasInsideComment := lexicalState.insideBlockComment
-		code := strings.TrimSpace(lexicalState.maskLiteralsAndComments(currentLine))
-		event := engine.LineEvent{Content: currentLine, IsBlank: strings.TrimSpace(currentLine) == ""}
-
-		remainingSource = nextSource
-		event.IsVerbatim = wasInsideLiteral || wasInsideComment
-		event.IsCommentOnly = code == "" && !event.IsBlank && !wasInsideLiteral
-
-		if code == "" {
-			events[lineIndex] = event
-
-			continue
-		}
-
-		statementStart := rootStatement
-		insideExpression := false
-
-		if len(delimiters) > 0 {
-			parent := delimiters[len(delimiters)-1]
-
-			insideExpression = !parent.isBody
-			statementStart = parent.currentStatement
-
-			if insideExpression {
-				statementStart = parent.statementStart
-			}
-		}
-
-		if pendingBody >= 0 {
-			statementStart = pendingBody
-		}
-
-		event.IsClosingBrace = isClosingBrace(code) || strings.HasPrefix(code, "]") || strings.HasPrefix(code, ">")
-		event.IsOpeningBrace = isOpeningBrace(code) || strings.HasSuffix(code, "[")
-		event.IsCaseLabel = ecmaScriptIsCaseLabel(code)
-
-		continuedBody := strings.HasPrefix(code, "{") && statementStart >= 0 && events[statementStart].IsScoped
-		isContinuationLine := wasInsideLiteral || insideExpression || previousEndedWithContinuation || continuedBody || pendingBody >= 0 ||
-			ecmaScriptLineStartsContinuation(code)
-
-		if !isContinuationLine && !event.IsClosingBrace && !event.IsCaseLabel {
-			statementType, isScoped, isContinuation := classifyEcmaScriptStatement(code)
-
-			if statementType == "call" && len(delimiters) > 0 {
-				parent := delimiters[len(delimiters)-1]
-
-				if parent.isBody && parent.statementStart >= 0 && events[parent.statementStart].StatementType == "type" {
-					statementType = "function"
-					isScoped = true
-				}
-			}
-
-			event.HasRole = true
-			event.StatementType = statementType
-			event.IsScoped = isScoped
-			event.IsSingleLine = true
-			event.IsContinuation = isContinuation
-			event.IsTopLevel = len(delimiters) == 0
-			statementStart = lineIndex
-
-			if len(delimiters) == 0 {
-				rootStatement = lineIndex
-			} else {
-				delimiters[len(delimiters)-1].currentStatement = lineIndex
-			}
-		}
-
-		startsScopedDefinition := event.IsScoped &&
-			(event.StatementType == "function" || event.StatementType == "type" || event.StatementType == "namespace")
-
-		if (startsScopedDefinition || (statementStart >= 0 && ecmaScriptHasFunctionKeyword(code))) && !strings.HasSuffix(code, ";") {
-			pendingBody = statementStart
-		}
-
-		events[lineIndex] = event
-
-		for characterIndex := 0; characterIndex < len(code); characterIndex++ {
-			character := code[characterIndex]
-
-			switch character {
-			case '(', '[', '{':
-				closing := byte(')')
-				isBody := false
-
-				switch character {
-				case '[':
-					closing = ']'
-				case '{':
-					prefix := strings.TrimSpace(code[:characterIndex])
-					continuedFunctionBody := prefix == "" && pendingBody == statementStart && strings.Contains(previousCode, ")")
-
-					closing = '}'
-					isBody = continuedFunctionBody || ecmaScriptBraceIsBody(prefix, statementStart, events, delimiters)
-
-					if isBody && pendingBody == statementStart {
-						pendingBody = -1
-					}
-
-					if isBody && statementStart == lineIndex && event.StatementType == "call" && strings.HasSuffix(prefix, ")") {
-						events[lineIndex].StatementType = "function"
-						events[lineIndex].IsScoped = true
-					}
-				}
-
-				delimiters = append(delimiters, ecmaScriptDelimiter{closing: closing, isBody: isBody, openingLine: lineIndex, statementStart: statementStart, currentStatement: -1})
-			case ')', ']', '}':
-				if len(delimiters) == 0 || delimiters[len(delimiters)-1].closing != character {
-					continue
-				}
-
-				closed := delimiters[len(delimiters)-1]
-
-				delimiters = delimiters[:len(delimiters)-1]
-
-				if closed.statementStart < 0 {
-					continue
-				}
-
-				owner := &events[closed.statementStart]
-
-				if closed.isBody && closed.openingLine != lineIndex {
-					owner.IsScoped = true
-				}
-
-				if closed.isBody {
-					owner.IsSingleLine = closed.statementStart == lineIndex
-				}
-
-				if event.IsClosingBrace {
-					events[lineIndex].HasRole = true
-					events[lineIndex].StatementType = owner.StatementType
-					events[lineIndex].IsScoped = owner.IsScoped
-					events[lineIndex].IsSingleLine = owner.IsSingleLine
-					events[lineIndex].IsTopLevel = owner.IsTopLevel
-					statementStart = closed.statementStart
-				}
-			}
-		}
-
-		previousEndedWithContinuation = !event.IsCaseLabel && ecmaScriptLineEndsContinuation(code)
-		previousCode = code
+	analyzer := ecmaScriptAnalyzer{
+		events:        make([]engine.LineEvent, strings.Count(remainingSource, "\n")+1),
+		rootStatement: -1,
+		pendingBody:   -1,
 	}
 
-	return events
+	for lineIndex := range analyzer.events {
+		currentLine, nextSource, _ := strings.Cut(remainingSource, "\n")
+
+		remainingSource = nextSource
+
+		analyzer.analyzeLine(lineIndex, currentLine)
+	}
+
+	return analyzer.events
+}
+
+func (analyzer *ecmaScriptAnalyzer) analyzeLine(lineIndex int, currentLine string) {
+	wasInsideLiteral := analyzer.lexicalState.quote != 0
+	wasInsideComment := analyzer.lexicalState.insideBlockComment
+	code := strings.TrimSpace(analyzer.lexicalState.maskLiteralsAndComments(currentLine))
+	event := engine.LineEvent{Content: currentLine, IsBlank: strings.TrimSpace(currentLine) == ""}
+
+	event.IsVerbatim = wasInsideLiteral || wasInsideComment
+	event.IsCommentOnly = code == "" && !event.IsBlank && !wasInsideLiteral
+
+	if code == "" {
+		analyzer.events[lineIndex] = event
+
+		return
+	}
+
+	statementStart, insideExpression := analyzer.enclosingStatement()
+
+	event.IsClosingBrace = isClosingBrace(code) || strings.HasPrefix(code, "]") || strings.HasPrefix(code, ">")
+	event.IsOpeningBrace = isOpeningBrace(code) || strings.HasSuffix(code, "[")
+	event.IsCaseLabel = ecmaScriptIsCaseLabel(code)
+
+	continuedBody := strings.HasPrefix(code, "{") && statementStart >= 0 && analyzer.events[statementStart].IsScoped
+	isContinuationLine := wasInsideLiteral || insideExpression || analyzer.previousEndedWithContinuation || continuedBody ||
+		analyzer.pendingBody >= 0 || ecmaScriptLineStartsContinuation(code)
+
+	if !isContinuationLine && !event.IsClosingBrace && !event.IsCaseLabel {
+		analyzer.startStatement(lineIndex, code, &event)
+
+		statementStart = lineIndex
+	}
+
+	startsScopedDefinition := event.IsScoped &&
+		(event.StatementType == "function" || event.StatementType == "type" || event.StatementType == "namespace")
+
+	if (startsScopedDefinition || (statementStart >= 0 && ecmaScriptHasFunctionKeyword(code))) && !strings.HasSuffix(code, ";") {
+		analyzer.pendingBody = statementStart
+	}
+
+	analyzer.events[lineIndex] = event
+
+	analyzer.scanDelimiters(lineIndex, code, statementStart, event.StatementType, event.IsClosingBrace)
+
+	analyzer.previousEndedWithContinuation = !event.IsCaseLabel && ecmaScriptLineEndsContinuation(code)
+	analyzer.previousCode = code
+}
+
+// A line inside an expression delimiter belongs to the statement that opened it; inside a body
+// it belongs to the body's latest statement. A pending function body claims the line first.
+func (analyzer *ecmaScriptAnalyzer) enclosingStatement() (int, bool) {
+	statementStart := analyzer.rootStatement
+	insideExpression := false
+
+	if len(analyzer.delimiters) > 0 {
+		parent := analyzer.delimiters[len(analyzer.delimiters)-1]
+
+		insideExpression = !parent.isBody
+		statementStart = parent.currentStatement
+
+		if insideExpression {
+			statementStart = parent.statementStart
+		}
+	}
+
+	if analyzer.pendingBody >= 0 {
+		statementStart = analyzer.pendingBody
+	}
+
+	return statementStart, insideExpression
+}
+
+func (analyzer *ecmaScriptAnalyzer) startStatement(lineIndex int, code string, event *engine.LineEvent) {
+	statementType, isScoped, isContinuation := classifyEcmaScriptStatement(code)
+
+	event.HasRole = true
+	event.StatementType = statementType
+	event.IsScoped = isScoped
+	event.IsSingleLine = true
+	event.IsContinuation = isContinuation
+	event.IsTopLevel = len(analyzer.delimiters) == 0
+
+	if len(analyzer.delimiters) == 0 {
+		analyzer.rootStatement = lineIndex
+
+		return
+	}
+
+	parent := &analyzer.delimiters[len(analyzer.delimiters)-1]
+
+	parent.currentStatement = lineIndex
+
+	// Calls directly inside a class or interface body are method signatures.
+	if statementType == "call" && parent.isBody && parent.statementStart >= 0 && analyzer.events[parent.statementStart].StatementType == "type" {
+		promoteCallToMethod(event)
+	}
+}
+
+func (analyzer *ecmaScriptAnalyzer) scanDelimiters(lineIndex int, code string, statementStart int, lineStatementType string, isClosingLine bool) {
+	for characterIndex := 0; characterIndex < len(code); characterIndex++ {
+		switch character := code[characterIndex]; character {
+		case '(', '[':
+			closing := byte(')')
+
+			if character == '[' {
+				closing = ']'
+			}
+
+			analyzer.delimiters = append(analyzer.delimiters, ecmaScriptDelimiter{closing: closing, openingLine: lineIndex, statementStart: statementStart, currentStatement: -1})
+		case '{':
+			prefix := strings.TrimSpace(code[:characterIndex])
+			continuedFunctionBody := prefix == "" && analyzer.pendingBody == statementStart && strings.Contains(analyzer.previousCode, ")")
+			isBody := continuedFunctionBody || ecmaScriptBraceIsBody(prefix, statementStart, analyzer.events, analyzer.delimiters)
+
+			if isBody && analyzer.pendingBody == statementStart {
+				analyzer.pendingBody = -1
+			}
+
+			// A call followed by a body on its own line is a method definition.
+			if isBody && statementStart == lineIndex && lineStatementType == "call" && strings.HasSuffix(prefix, ")") {
+				promoteCallToMethod(&analyzer.events[lineIndex])
+			}
+
+			analyzer.delimiters = append(analyzer.delimiters, ecmaScriptDelimiter{closing: '}', isBody: isBody, openingLine: lineIndex, statementStart: statementStart, currentStatement: -1})
+		case ')', ']', '}':
+			ownerStatement, closedOwnedDelimiter := analyzer.closeDelimiter(lineIndex, character)
+
+			if closedOwnedDelimiter && isClosingLine {
+				owner := analyzer.events[ownerStatement]
+				closingEvent := &analyzer.events[lineIndex]
+
+				closingEvent.HasRole = true
+				closingEvent.StatementType = owner.StatementType
+				closingEvent.IsScoped = owner.IsScoped
+				closingEvent.IsSingleLine = owner.IsSingleLine
+				closingEvent.IsTopLevel = owner.IsTopLevel
+				statementStart = ownerStatement
+			}
+		}
+	}
+}
+
+// Closing a body records whether its owner spans lines. Unmatched closers are ignored.
+func (analyzer *ecmaScriptAnalyzer) closeDelimiter(lineIndex int, character byte) (int, bool) {
+	if len(analyzer.delimiters) == 0 || analyzer.delimiters[len(analyzer.delimiters)-1].closing != character {
+		return 0, false
+	}
+
+	closed := analyzer.delimiters[len(analyzer.delimiters)-1]
+
+	analyzer.delimiters = analyzer.delimiters[:len(analyzer.delimiters)-1]
+
+	if closed.statementStart < 0 {
+		return 0, false
+	}
+
+	owner := &analyzer.events[closed.statementStart]
+
+	if closed.isBody && closed.openingLine != lineIndex {
+		owner.IsScoped = true
+	}
+
+	if closed.isBody {
+		owner.IsSingleLine = closed.statementStart == lineIndex
+	}
+
+	return closed.statementStart, true
+}
+
+func promoteCallToMethod(event *engine.LineEvent) {
+	event.StatementType = "function"
+	event.IsScoped = true
 }
 
 func classifyEcmaScriptStatement(trimmedLine string) (string, bool, bool) {
