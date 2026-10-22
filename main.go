@@ -13,14 +13,27 @@ import (
 )
 
 var version = "dev"
-var (
-	writeFlag   = flag.Bool("w", false, "write result to (source) file instead of stdout")
-	listFlag    = flag.Bool("l", false, "list files whose formatting differs from iku's")
-	diffFlag    = flag.Bool("d", false, "display diffs instead of rewriting files")
-	versionFlag = flag.Bool("version", false, "print version")
-)
+
+type commandLine struct {
+	formatter   *Formatter
+	write       bool
+	list        bool
+	diff        bool
+	output      io.Writer
+	errorOutput io.Writer
+}
+
+type fileResult struct {
+	output []byte
+	err    error
+}
 
 func main() {
+	writeFlag := flag.Bool("w", false, "write result to (source) file instead of stdout")
+	listFlag := flag.Bool("l", false, "list files whose formatting differs from iku's")
+	diffFlag := flag.Bool("d", false, "display diffs instead of rewriting files")
+	versionFlag := flag.Bool("version", false, "print version")
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: iku [flags] [path ...]\n")
 		flag.PrintDefaults()
@@ -40,136 +53,150 @@ func main() {
 		os.Exit(2)
 	}
 
-	formatter := &Formatter{Engine: formattingEngine}
+	command := &commandLine{
+		formatter:   &Formatter{Engine: formattingEngine},
+		write:       *writeFlag,
+		list:        *listFlag,
+		diff:        *diffFlag,
+		output:      os.Stdout,
+		errorOutput: os.Stderr,
+	}
 
 	if flag.NArg() == 0 {
-		if *writeFlag {
+		if command.write {
 			fmt.Fprintln(os.Stderr, "iku: cannot use -w with standard input")
 			os.Exit(2)
 		}
 
-		if err := processFile(formatter, "<stdin>", os.Stdin, os.Stdout, false); err != nil {
-			fmt.Fprintf(os.Stderr, "iku: %v\n", err)
-			os.Exit(1)
-		}
+		os.Exit(command.processStandardInput(os.Stdin))
+	}
 
-		return
+	os.Exit(command.processPaths(flag.Args()))
+}
+
+func (command *commandLine) processStandardInput(input io.Reader) int {
+	source, err := io.ReadAll(input)
+
+	if err != nil {
+		return command.report(fileResult{err: err})
+	}
+
+	return command.report(command.formatSource("<stdin>", source))
+}
+
+func (command *commandLine) processPaths(argumentPaths []string) int {
+	exitCode := 0
+
+	for _, argumentPath := range argumentPaths {
+		exitCode = max(exitCode, command.processPath(argumentPath))
+	}
+
+	return exitCode
+}
+
+func (command *commandLine) processPath(argumentPath string) int {
+	fileInformation, err := os.Stat(argumentPath)
+
+	if err != nil {
+		return command.report(fileResult{err: err})
+	}
+
+	if !fileInformation.IsDir() {
+		return command.report(command.formatFile(argumentPath))
+	}
+
+	sourceFilePaths, err := findSourceFiles(argumentPath)
+
+	if err != nil {
+		return command.report(fileResult{err: err})
+	}
+
+	workerSlots := make(chan struct{}, runtime.NumCPU())
+	fileResults := make(chan fileResult, runtime.NumCPU())
+
+	for _, filePath := range sourceFilePaths {
+		go func() {
+			workerSlots <- struct{}{}
+
+			defer func() { <-workerSlots }()
+
+			fileResults <- command.formatFile(filePath)
+		}()
 	}
 
 	exitCode := 0
 
-	for _, argumentPath := range flag.Args() {
-		fileInformation, processingError := os.Stat(argumentPath)
-
-		if processingError == nil {
-			if fileInformation.IsDir() {
-				processingError = processDirectory(formatter, argumentPath, &exitCode)
-			} else {
-				processingError = processFilePath(formatter, argumentPath)
-			}
-		}
-
-		if processingError != nil {
-			fmt.Fprintf(os.Stderr, "iku: %v\n", processingError)
-
-			exitCode = 1
-		}
+	for range sourceFilePaths {
+		exitCode = max(exitCode, command.report(<-fileResults))
 	}
 
-	os.Exit(exitCode)
+	return exitCode
 }
 
-func processDirectory(formatter *Formatter, directoryPath string, exitCode *int) error {
+func findSourceFiles(directoryPath string) ([]string, error) {
 	var sourceFilePaths []string
-	err := filepath.WalkDir(directoryPath, func(currentPath string, dirEntry fs.DirEntry, err error) error {
+	err := filepath.WalkDir(directoryPath, func(currentPath string, directoryEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		fileExtension := filepath.Ext(currentPath)
 
-		if !dirEntry.IsDir() && (fileExtension == ".go" || isEcmaScriptExtension(fileExtension)) {
+		if !directoryEntry.IsDir() && (fileExtension == ".go" || isEcmaScriptExtension(fileExtension)) {
 			sourceFilePaths = append(sourceFilePaths, currentPath)
 		}
 
 		return nil
 	})
 
-	if err != nil {
-		return err
-	}
-
-	semaphore := make(chan struct{}, runtime.NumCPU())
-	fileResults := make(chan error, runtime.NumCPU())
-
-	for _, filePath := range sourceFilePaths {
-		go func() {
-			semaphore <- struct{}{}
-
-			defer func() { <-semaphore }()
-
-			fileResults <- processFilePath(formatter, filePath)
-		}()
-	}
-
-	for range sourceFilePaths {
-		if err := <-fileResults; err != nil {
-			fmt.Fprintf(os.Stderr, "iku: %v\n", err)
-
-			*exitCode = 1
-		}
-	}
-
-	return nil
+	return sourceFilePaths, err
 }
 
-func processFilePath(formatter *Formatter, filePath string) error {
-	sourceFile, err := os.Open(filePath)
+func (command *commandLine) formatFile(filePath string) fileResult {
+	source, err := os.ReadFile(filePath)
 
 	if err != nil {
-		return err
+		return fileResult{err: err}
 	}
 
-	defer func() { _ = sourceFile.Close() }()
-
-	return processFile(formatter, filePath, sourceFile, os.Stdout, true)
+	return command.formatSource(filePath, source)
 }
 
-func processFile(formatter *Formatter, filename string, inputReader io.Reader, outputWriter io.Writer, isFile bool) error {
-	sourceContent, err := io.ReadAll(inputReader)
+func (command *commandLine) formatSource(filename string, source []byte) fileResult {
+	formatted, err := command.formatter.Format(source, filename)
 
 	if err != nil {
-		return fmt.Errorf("%s: %v", filename, err)
+		return fileResult{err: fmt.Errorf("%s: %v", filename, err)}
 	}
 
-	formattedResult, err := formatter.Format(sourceContent, filename)
-
-	if err != nil {
-		return fmt.Errorf("%s: %v", filename, err)
-	}
-
-	writeToFile := *writeFlag && isFile
-
-	if (*listFlag || *diffFlag || writeToFile) && bytes.Equal(sourceContent, formattedResult) {
-		return nil
+	if (command.list || command.diff || command.write) && bytes.Equal(source, formatted) {
+		return fileResult{}
 	}
 
 	switch {
-	case *listFlag:
-		fmt.Println(filename)
-	case *diffFlag:
-		diffOutput := unifiedDiff(filename, sourceContent, formattedResult)
+	case command.list:
+		return fileResult{output: []byte(filename + "\n")}
+	case command.diff:
+		return fileResult{output: unifiedDiff(filename, source, formatted)}
+	case command.write:
+		return fileResult{err: os.WriteFile(filename, formatted, 0644)}
+	default:
+		return fileResult{output: formatted}
+	}
+}
 
-		_, _ = os.Stdout.Write(diffOutput)
-	case writeToFile:
-		return os.WriteFile(filename, formattedResult, 0644)
-	case outputWriter != nil:
-		_, err = outputWriter.Write(formattedResult)
-
-		return err
+func (command *commandLine) report(result fileResult) int {
+	if _, err := command.output.Write(result.output); err != nil && result.err == nil {
+		result.err = err
 	}
 
-	return nil
+	if result.err == nil {
+		return 0
+	}
+
+	fmt.Fprintf(command.errorOutput, "iku: %v\n", result.err)
+
+	return 1
 }
 
 func unifiedDiff(filename string, originalSource, formattedSource []byte) []byte {

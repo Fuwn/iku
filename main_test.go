@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestUnifiedDiff(t *testing.T) {
 	cases := []struct {
@@ -24,5 +30,50 @@ func TestUnifiedDiff(t *testing.T) {
 				t.Errorf("got %q; want %q", result, testCase.expected)
 			}
 		})
+	}
+}
+
+func writeTestFiles(t *testing.T, directory string, contents map[string]string) {
+	t.Helper()
+
+	for relativePath, content := range contents {
+		filePath := filepath.Join(directory, relativePath)
+
+		if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func runCommandLine(command *commandLine, argumentPaths ...string) (int, string, string) {
+	var output, errorOutput bytes.Buffer
+
+	command.formatter = &Formatter{}
+	command.output = &output
+	command.errorOutput = &errorOutput
+
+	exitCode := command.processPaths(argumentPaths)
+
+	return exitCode, output.String(), errorOutput.String()
+}
+
+func TestCommandLineContinuesAfterErrors(t *testing.T) {
+	directory := t.TempDir()
+	formattedPath := filepath.Join(directory, "example.go")
+
+	writeTestFiles(t, directory, map[string]string{"example.go": "package example\n"})
+
+	exitCode, output, errorOutput := runCommandLine(&commandLine{}, filepath.Join(directory, "missing.go"), formattedPath)
+
+	if exitCode != 1 || !strings.Contains(errorOutput, "missing.go") {
+		t.Errorf("exit code %d, errors %q", exitCode, errorOutput)
+	}
+
+	if output != "package example\n" {
+		t.Errorf("got %q; want the formatted file", output)
 	}
 }
