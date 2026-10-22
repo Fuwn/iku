@@ -1,5 +1,5 @@
 {
-  description = "Grammar-Aware Go Formatter";
+  description = "Grammar-Aware Code Formatter";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -33,7 +33,7 @@
           ];
 
           meta = with pkgs.lib; {
-            description = "Grammar-Aware Go Formatter";
+            description = "Grammar-Aware Code Formatter";
             homepage = "https://github.com/Fuwn/iku";
             license = [
               licenses.mit
