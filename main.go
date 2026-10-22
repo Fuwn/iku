@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 )
 
 var version = "dev"
@@ -143,9 +144,15 @@ func findSourceFiles(directoryPath string) ([]string, error) {
 			return err
 		}
 
-		fileExtension := filepath.Ext(currentPath)
+		if directoryEntry.IsDir() {
+			if currentPath != directoryPath && isSkippedDirectory(directoryEntry.Name()) {
+				return filepath.SkipDir
+			}
 
-		if !directoryEntry.IsDir() && (fileExtension == ".go" || isEcmaScriptExtension(fileExtension)) {
+			return nil
+		}
+
+		if fileExtension := filepath.Ext(currentPath); fileExtension == ".go" || isEcmaScriptExtension(fileExtension) {
 			sourceFilePaths = append(sourceFilePaths, currentPath)
 		}
 
@@ -153,6 +160,11 @@ func findSourceFiles(directoryPath string) ([]string, error) {
 	})
 
 	return sourceFilePaths, err
+}
+
+// Hidden directories and installed JavaScript dependencies are not project sources.
+func isSkippedDirectory(name string) bool {
+	return strings.HasPrefix(name, ".") || name == "node_modules"
 }
 
 func (command *commandLine) formatFile(filePath string) fileResult {

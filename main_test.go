@@ -127,3 +127,20 @@ func TestCommandLineListsAndWrites(t *testing.T) {
 		t.Errorf("got %q; want %q", written, expected)
 	}
 }
+
+func TestCommandLineSkipsHiddenAndDependencyDirectories(t *testing.T) {
+	directory := t.TempDir()
+	unformatted := "const first = 1;\nrun();\n"
+
+	writeTestFiles(t, directory, map[string]string{
+		".git/hooks/example.js":           unformatted,
+		"node_modules/package/example.js": unformatted,
+		"source/example.js":               unformatted,
+	})
+
+	exitCode, output, errorOutput := runCommandLine(&commandLine{list: true}, directory)
+
+	if expected := filepath.Join(directory, "source", "example.js") + "\n"; exitCode != 0 || errorOutput != "" || output != expected {
+		t.Fatalf("exit code %d, output %q, errors %q; want output %q", exitCode, output, errorOutput, expected)
+	}
+}

@@ -63,6 +63,8 @@ iku -l .
 iku -d file.go
 ```
 
+Directory walks skip hidden directories and `node_modules`.
+
 ### Flags
 
 | Flag | Description |
