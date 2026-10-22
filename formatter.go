@@ -27,56 +27,18 @@ func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
 		return nil, err
 	}
 
-	commentMode := f.CommentMode
-
-	if commentMode < CommentsFollow || commentMode > CommentsStandalone {
-		commentMode = CommentsFollow
-	}
-
 	formattingEngine := &engine.Engine{
-		CommentMode:           commentMode,
+		CommentMode:           f.CommentMode,
 		GroupSingleLineScopes: f.Configuration.groupSingleLineFunctions(),
 	}
 	result := formattingEngine.FormatToBytes(events)
 
-	if isEcmaScriptExtension(filepath.Ext(filename)) || bytes.Equal(normalizedSource, result) || !needsGoNormalization(events, result) {
+	if isEcmaScriptExtension(filepath.Ext(filename)) || bytes.Equal(normalizedSource, result) {
 		return result, nil
 	}
 
 	// Regrouping declarations can change Go's column alignment and build-tag spacing.
 	return format.Source(result)
-}
-
-func needsGoNormalization(events []engine.LineEvent, result []byte) bool {
-	outputPosition := 0
-	hadBlankLine := false
-
-	for _, event := range events {
-		if event.IsCommentOnly || (event.StatementType == "function" && event.IsSingleLineScope) {
-			return true
-		}
-
-		if event.IsBlank && !event.InRawString {
-			hadBlankLine = true
-
-			continue
-		}
-
-		lineBreakStart := outputPosition
-
-		for outputPosition < len(result) && result[outputPosition] == '\n' {
-			outputPosition++
-		}
-
-		if hadBlankLine && outputPosition-lineBreakStart < 2 {
-			return true
-		}
-
-		hadBlankLine = false
-		outputPosition += len(event.Content)
-	}
-
-	return false
 }
 
 func analyzeSource(source []byte, filename string) ([]byte, []engine.LineEvent, error) {
