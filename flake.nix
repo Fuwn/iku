@@ -44,7 +44,11 @@
         };
 
         devShells.default = pkgs.mkShell {
-          buildInputs = [ pkgs.go_1_25 ];
+          buildInputs = [
+            pkgs.go_1_25
+            pkgs.go-task
+            pkgs.golangci-lint
+          ];
         };
       }
     );
