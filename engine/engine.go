@@ -17,7 +17,7 @@ func (e *Engine) Format(events []LineEvent) []byte {
 	outputCapacityBytes := 1
 
 	for _, event := range events {
-		if !event.IsBlank || event.InRawString {
+		if !event.IsBlank || event.IsVerbatim {
 			outputCapacityBytes += len(event.Content) + 2
 		}
 	}
@@ -32,16 +32,16 @@ func (e *Engine) Format(events []LineEvent) []byte {
 	previousWasSingleLineScope := false
 
 	for _, event := range events {
-		if event.IsBlank && !event.InRawString {
+		if event.IsBlank && !event.IsVerbatim {
 			continue
 		}
 
 		needsBlankLine := false
 
-		if !event.InRawString && hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel && !event.IsContinuation {
-			currentIsTopLevel := event.HasASTInfo && event.IsTopLevel
-			currentIsScoped := event.HasASTInfo && event.IsScoped
-			currentIsSingleLineScope := currentIsScoped && event.IsSingleLineScope
+		if !event.IsVerbatim && hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel && !event.IsContinuation {
+			currentIsTopLevel := event.HasRole && event.IsTopLevel
+			currentIsScoped := event.HasRole && event.IsScoped
+			currentIsSingleLineScope := currentIsScoped && event.IsSingleLine
 			sameStatementType := event.StatementType == previousStatementType
 			groupedBindings := sameStatementType && event.StatementType == "binding" && !currentIsTopLevel && !previousWasTopLevel
 			groupedCalls := sameStatementType && event.StatementType == "call"
@@ -51,7 +51,7 @@ func (e *Engine) Format(events []LineEvent) []byte {
 				needsBlankLine = true
 			} else if groupedBindings || groupedCalls {
 				needsBlankLine = false
-			} else if event.HasASTInfo && (currentIsScoped || previousWasScoped) {
+			} else if event.HasRole && (currentIsScoped || previousWasScoped) {
 				groupedDefinitions := !e.SeparateSingleLineDefinitions && isDefinition && currentIsSingleLineScope && previousWasSingleLineScope && sameStatementType
 
 				needsBlankLine = !groupedDefinitions
@@ -78,16 +78,16 @@ func (e *Engine) Format(events []LineEvent) []byte {
 		hasWrittenContent = true
 		previousWasOpenBrace = event.IsOpeningBrace || event.IsCaseLabel
 
-		if !event.InRawString || event.HasASTInfo {
+		if !event.IsVerbatim || event.HasRole {
 			previousWasComment = event.IsCommentOnly
 		}
 
-		if event.HasASTInfo {
+		if event.HasRole {
 			previousStatementType = event.StatementType
 			previousWasTopLevel = event.IsTopLevel
 			previousWasScoped = event.IsScoped
-			previousWasSingleLineScope = event.IsSingleLineScope && event.IsScoped
-		} else if !event.InRawString && event.StatementType != "" {
+			previousWasSingleLineScope = event.IsSingleLine && event.IsScoped
+		} else if !event.IsVerbatim && event.StatementType != "" {
 			previousStatementType = event.StatementType
 			previousWasTopLevel = false
 			previousWasScoped = false

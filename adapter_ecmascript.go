@@ -23,7 +23,7 @@ func analyzeEcmaScript(source []byte) []engine.LineEvent {
 		event := engine.LineEvent{Content: currentLine, IsBlank: strings.TrimSpace(currentLine) == ""}
 
 		remainingSource = nextSource
-		event.InRawString = wasInsideLiteral || wasInsideComment
+		event.IsVerbatim = wasInsideLiteral || wasInsideComment
 		event.IsCommentOnly = code == "" && !event.IsBlank && !wasInsideLiteral
 
 		if code == "" {
@@ -70,10 +70,10 @@ func analyzeEcmaScript(source []byte) []engine.LineEvent {
 				}
 			}
 
-			event.HasASTInfo = true
+			event.HasRole = true
 			event.StatementType = statementType
 			event.IsScoped = isScoped
-			event.IsSingleLineScope = isScoped
+			event.IsSingleLine = true
 			event.IsContinuation = isContinuation
 			event.IsTopLevel = len(delimiters) == 0
 			statementStart = lineIndex
@@ -143,14 +143,14 @@ func analyzeEcmaScript(source []byte) []engine.LineEvent {
 				}
 
 				if closed.isBody {
-					owner.IsSingleLineScope = closed.statementStart == lineIndex
+					owner.IsSingleLine = closed.statementStart == lineIndex
 				}
 
 				if event.IsClosingBrace {
-					events[lineIndex].HasASTInfo = true
+					events[lineIndex].HasRole = true
 					events[lineIndex].StatementType = owner.StatementType
 					events[lineIndex].IsScoped = owner.IsScoped
-					events[lineIndex].IsSingleLineScope = owner.IsSingleLineScope
+					events[lineIndex].IsSingleLine = owner.IsSingleLine
 					events[lineIndex].IsTopLevel = owner.IsTopLevel
 					statementStart = closed.statementStart
 				}

@@ -59,11 +59,11 @@ func indexGoStatements(tokenFileSet *token.FileSet, parsedFile *ast.File, events
 			statementType, isScoped = classifyGoGeneralDeclaration(tokenFile, generalDeclaration, isSingleLine)
 		}
 
-		events[startLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsTopLevel: true, IsScoped: isScoped, IsSingleLineScope: isSingleLine}
+		events[startLine-1] = engine.LineEvent{HasRole: true, StatementType: statementType, IsTopLevel: true, IsScoped: isScoped, IsSingleLine: isSingleLine}
 		isStatementStart[startLine-1] = true
 
 		if endLine != startLine {
-			events[endLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsTopLevel: true, IsScoped: isScoped}
+			events[endLine-1] = engine.LineEvent{HasRole: true, StatementType: statementType, IsTopLevel: true, IsScoped: isScoped}
 		}
 	}
 
@@ -145,12 +145,12 @@ func indexGoStatementList(tokenFile *token.File, statements []ast.Stmt, events [
 		}
 
 		if !isStatementStart[startLine-1] {
-			events[startLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsScoped: isScoped, IsSingleLineScope: isSingleLine}
+			events[startLine-1] = engine.LineEvent{HasRole: true, StatementType: statementType, IsScoped: isScoped, IsSingleLine: isSingleLine}
 			isStatementStart[startLine-1] = true
 		}
 
 		if !isStatementStart[endLine-1] {
-			events[endLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsScoped: isScoped}
+			events[endLine-1] = engine.LineEvent{HasRole: true, StatementType: statementType, IsScoped: isScoped}
 		}
 	}
 }

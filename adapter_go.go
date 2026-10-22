@@ -59,7 +59,7 @@ func analyzeGo(source []byte) ([]byte, []engine.LineEvent, error) {
 				commentOnly := strings.HasPrefix(trimmedContent, "/*") &&
 					(commentEnd < 0 || strings.TrimSpace(trimmedContent[commentEnd+2:]) == "")
 
-				event.InRawString = commentLine != firstLine
+				event.IsVerbatim = commentLine != firstLine
 				event.IsCommentOnly = event.IsCommentOnly || commentOnly
 			}
 		}
@@ -77,7 +77,7 @@ func analyzeGo(source []byte) ([]byte, []engine.LineEvent, error) {
 		lastLine := tokenFileSet.PositionFor(literal.End(), false).Line
 
 		for literalLine := firstLine + 1; literalLine <= lastLine; literalLine++ {
-			events[literalLine-1].InRawString = true
+			events[literalLine-1].IsVerbatim = true
 		}
 
 		return false
