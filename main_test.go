@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,6 +60,32 @@ func runCommandLine(command *commandLine, argumentPaths ...string) (int, string,
 	exitCode := command.processPaths(argumentPaths)
 
 	return exitCode, output.String(), errorOutput.String()
+}
+
+func TestCommandLineListsDirectoryInWalkOrder(t *testing.T) {
+	directory := t.TempDir()
+	contents := map[string]string{}
+	var expectedOutput strings.Builder
+
+	for index := range 40 {
+		relativePath := fmt.Sprintf("file%02d.go", index)
+
+		contents[relativePath] = "package example\nvar first = 1\nfunc second() {}\n"
+
+		fmt.Fprintln(&expectedOutput, filepath.Join(directory, relativePath))
+	}
+
+	writeTestFiles(t, directory, contents)
+
+	exitCode, output, errorOutput := runCommandLine(&commandLine{list: true}, directory)
+
+	if exitCode != 0 || errorOutput != "" {
+		t.Fatalf("exit code %d, errors %q", exitCode, errorOutput)
+	}
+
+	if output != expectedOutput.String() {
+		t.Errorf("got %q; want %q", output, expectedOutput.String())
+	}
 }
 
 func TestCommandLineContinuesAfterErrors(t *testing.T) {

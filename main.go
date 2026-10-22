@@ -111,23 +111,26 @@ func (command *commandLine) processPath(argumentPath string) int {
 		return command.report(fileResult{err: err})
 	}
 
+	// Workers finish in any order; reporting waits on each file's result in walk order.
 	workerSlots := make(chan struct{}, runtime.NumCPU())
-	fileResults := make(chan fileResult, runtime.NumCPU())
+	pendingResults := make([]chan fileResult, len(sourceFilePaths))
 
-	for _, filePath := range sourceFilePaths {
+	for index, filePath := range sourceFilePaths {
+		pendingResults[index] = make(chan fileResult, 1)
+
 		go func() {
 			workerSlots <- struct{}{}
 
 			defer func() { <-workerSlots }()
 
-			fileResults <- command.formatFile(filePath)
+			pendingResults[index] <- command.formatFile(filePath)
 		}()
 	}
 
 	exitCode := 0
 
-	for range sourceFilePaths {
-		exitCode = max(exitCode, command.report(<-fileResults))
+	for _, pendingResult := range pendingResults {
+		exitCode = max(exitCode, command.report(<-pendingResult))
 	}
 
 	return exitCode
