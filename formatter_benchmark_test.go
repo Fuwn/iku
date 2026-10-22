@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -86,5 +87,47 @@ func BenchmarkUnifiedDiff(b *testing.B) {
 				_ = unifiedDiff("example.go", original, formatted)
 			}
 		})
+	}
+}
+
+func BenchmarkFormatSmall(b *testing.B) {
+	inputSource := []byte(`package main
+func main() {
+	x := 1
+	y := 2
+	if x > 0 {
+		z := 3
+	}
+	a := 4
+}
+`)
+	formatter := &Formatter{}
+
+	for b.Loop() {
+		_, _ = formatter.Format(inputSource, "test.go")
+	}
+}
+
+func BenchmarkFormatLarge(b *testing.B) {
+	var sourceBuilder strings.Builder
+
+	sourceBuilder.WriteString("package main\n\n")
+
+	for functionIndex := range 100 {
+		fmt.Fprintf(&sourceBuilder, "func foo%d", functionIndex)
+		sourceBuilder.WriteString("() {\n")
+		sourceBuilder.WriteString("\tx := 1\n")
+		sourceBuilder.WriteString("\tif x > 0 {\n")
+		sourceBuilder.WriteString("\t\ty := 2\n")
+		sourceBuilder.WriteString("\t}\n")
+		sourceBuilder.WriteString("\tz := 3\n")
+		sourceBuilder.WriteString("}\n\n")
+	}
+
+	inputSource := []byte(sourceBuilder.String())
+	formatter := &Formatter{}
+
+	for b.Loop() {
+		_, _ = formatter.Format(inputSource, "test.go")
 	}
 }

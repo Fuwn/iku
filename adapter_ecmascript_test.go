@@ -1,19 +1,11 @@
 package main
 
-import (
-	"github.com/Fuwn/iku/engine"
-	"testing"
-)
+import "testing"
 
-type ecmaScriptTestCase struct {
-	name     string
-	source   string
-	expected string
-}
-
-var ecmaScriptTestCases = []ecmaScriptTestCase{
+var ecmaScriptFormattingCases = []formattingCase{
 	{
-		name: "blank lines around if block",
+		name:     "blank lines around if block",
+		filename: "example.ts",
 		source: `const x = 1;
 if (x > 0) {
   doSomething();
@@ -30,7 +22,8 @@ const y = 2;
 `,
 	},
 	{
-		name: "blank lines around for loop",
+		name:     "blank lines around for loop",
+		filename: "example.ts",
 		source: `const items = [1, 2, 3];
 for (const item of items) {
   process(item);
@@ -47,7 +40,8 @@ const result = done();
 `,
 	},
 	{
-		name: "blank lines between different top-level types",
+		name:     "blank lines between different top-level types",
+		filename: "example.ts",
 		source: `import { foo } from "bar";
 const x = 1;
 function main() {
@@ -71,7 +65,8 @@ class Foo {
 `,
 	},
 	{
-		name: "no blank between same type",
+		name:     "no blank between same type",
+		filename: "example.ts",
 		source: `const x = 1;
 const y = 2;
 const z = 3;
@@ -82,7 +77,8 @@ const z = 3;
 `,
 	},
 	{
-		name: "consecutive imports stay together",
+		name:     "consecutive imports stay together",
+		filename: "example.ts",
 		source: `import { a } from "a";
 import { b } from "b";
 import { c } from "c";
@@ -93,7 +89,8 @@ import { c } from "c";
 `,
 	},
 	{
-		name: "switch with case clauses",
+		name:     "switch with case clauses",
+		filename: "example.ts",
 		source: `const x = getValue();
 switch (x) {
 case "a":
@@ -122,7 +119,8 @@ cleanup();
 `,
 	},
 	{
-		name: "try catch finally",
+		name:     "try catch finally",
+		filename: "example.ts",
 		source: `setup();
 try {
   riskyOperation();
@@ -147,7 +145,8 @@ done();
 `,
 	},
 	{
-		name: "consecutive scoped blocks",
+		name:     "consecutive scoped blocks",
+		filename: "example.ts",
 		source: `if (a) {
   doA();
 }
@@ -165,7 +164,8 @@ if (b) {
 `,
 	},
 	{
-		name: "export prefixes",
+		name:     "export prefixes",
+		filename: "example.ts",
 		source: `export const x = 1;
 export function foo() {
   return x;
@@ -186,7 +186,8 @@ export class Bar {
 `,
 	},
 	{
-		name: "async function",
+		name:     "async function",
+		filename: "example.ts",
 		source: `const data = prepare();
 async function fetchData() {
   return await fetch(url);
@@ -203,7 +204,8 @@ const result = process();
 `,
 	},
 	{
-		name: "typescript interface and type",
+		name:     "typescript interface and type",
+		filename: "example.ts",
 		source: `type ID = string;
 interface User {
   name: string;
@@ -222,7 +224,8 @@ const defaultUser: User = { name: "", id: "" };
 `,
 	},
 	{
-		name: "multi-line function call preserved",
+		name:     "multi-line function call preserved",
+		filename: "example.ts",
 		source: `const result = someFunction(
   longArgument,
   otherArgument,
@@ -237,7 +240,8 @@ const next = 1;
 `,
 	},
 	{
-		name: "method chaining preserved",
+		name:     "method chaining preserved",
+		filename: "example.ts",
 		source: `const result = someArray
   .filter(x => x > 0)
   .map(x => x * 2);
@@ -250,7 +254,8 @@ const next = 1;
 `,
 	},
 	{
-		name: "block comment passthrough",
+		name:     "block comment passthrough",
+		filename: "example.ts",
 		source: `/*
  * This is a block comment
  */
@@ -263,7 +268,8 @@ const x = 1;
 `,
 	},
 	{
-		name: "collapses extra blank lines",
+		name:     "collapses extra blank lines",
+		filename: "example.ts",
 		source: `const x = 1;
 
 
@@ -274,7 +280,8 @@ const y = 2;
 `,
 	},
 	{
-		name: "while loop",
+		name:     "while loop",
+		filename: "example.ts",
 		source: `let count = 0;
 while (count < 10) {
   count++;
@@ -291,7 +298,8 @@ const done = true;
 `,
 	},
 	{
-		name: "nested scopes",
+		name:     "nested scopes",
+		filename: "example.ts",
 		source: `function main() {
   const x = 1;
   if (x > 0) {
@@ -320,11 +328,13 @@ const done = true;
 	},
 	{
 		name:     "template literal passthrough",
+		filename: "example.ts",
 		source:   "const x = `\nhello\n\nworld\n`;\nconst y = 1;\n",
 		expected: "const x = `\nhello\n\nworld\n`;\nconst y = 1;\n",
 	},
 	{
-		name: "jsx expressions",
+		name:     "jsx expressions",
+		filename: "example.ts",
 		source: `function Component() {
   const data = useMemo();
   if (!data) {
@@ -353,7 +363,8 @@ const done = true;
 `,
 	},
 	{
-		name: "expression after scoped block",
+		name:     "expression after scoped block",
+		filename: "example.ts",
 		source: `function main() {
   if (x) {
     return;
@@ -371,7 +382,8 @@ const done = true;
 `,
 	},
 	{
-		name: "enum declaration",
+		name:     "enum declaration",
+		filename: "example.ts",
 		source: `type Color = string;
 enum Direction {
   Up,
@@ -391,14 +403,10 @@ const x = Direction.Up;
 	},
 }
 
-func TestEcmaScriptAdapter(t *testing.T) {
-	for _, testCase := range ecmaScriptTestCases {
+func TestFormatEcmaScript(t *testing.T) {
+	for _, testCase := range ecmaScriptFormattingCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			result := string((&engine.Engine{}).Format(analyzeEcmaScript([]byte(testCase.source))))
-
-			if result != testCase.expected {
-				t.Errorf("mismatch\ngot:\n%s\nwant:\n%s", result, testCase.expected)
-			}
+			assertFormatting(t, &Formatter{}, testCase)
 		})
 	}
 }
