@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 )
 
@@ -223,26 +222,4 @@ func (command *commandLine) report(result fileResult) int {
 	fmt.Fprintf(command.errorOutput, "iku: %v\n", result.err)
 
 	return 1
-}
-
-func unifiedDiff(filename string, originalSource, formattedSource []byte) []byte {
-	originalLineCount := bytes.Count(originalSource, []byte("\n")) + 1
-	formattedLineCount := bytes.Count(formattedSource, []byte("\n")) + 1
-	output := fmt.Appendf(nil, "--- %s\n+++ %s\n@@ -1,%d +1,%d @@\n", filename, filename, originalLineCount, formattedLineCount)
-
-	// Each source gains a prefix on every line and a trailing newline.
-	output = slices.Grow(output, len(originalSource)+len(formattedSource)+originalLineCount+formattedLineCount+2)
-
-	writeLines := func(prefix byte, source []byte) {
-		for currentLine := range bytes.SplitSeq(source, []byte("\n")) {
-			output = append(output, prefix)
-			output = append(output, currentLine...)
-			output = append(output, '\n')
-		}
-	}
-
-	writeLines('-', originalSource)
-	writeLines('+', formattedSource)
-
-	return output
 }
