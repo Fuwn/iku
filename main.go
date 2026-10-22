@@ -219,7 +219,7 @@ func (command *commandLine) report(result fileResult) int {
 		return 0
 	}
 
-	fmt.Fprintf(command.errorOutput, "iku: %v\n", result.err)
+	_, _ = fmt.Fprintf(command.errorOutput, "iku: %v\n", result.err)
 
 	return 1
 }
