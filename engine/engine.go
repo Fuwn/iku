@@ -1,7 +1,5 @@
 package engine
 
-import "strings"
-
 type CommentMode int
 
 const (
@@ -15,8 +13,7 @@ type Engine struct {
 	GroupSingleLineScopes bool
 }
 
-func (e *Engine) FormatToString(events []LineEvent) string {
-	var resultBuilder strings.Builder
+func (e *Engine) Format(events []LineEvent) []byte {
 	outputCapacityBytes := 1
 
 	for _, event := range events {
@@ -25,8 +22,7 @@ func (e *Engine) FormatToString(events []LineEvent) string {
 		}
 	}
 
-	resultBuilder.Grow(outputCapacityBytes)
-
+	output := make([]byte, 0, outputCapacityBytes)
 	hasWrittenContent := false
 	previousWasOpenBrace := false
 	previousStatementType := ""
@@ -40,22 +36,16 @@ func (e *Engine) FormatToString(events []LineEvent) string {
 			continue
 		}
 
-		currentStatementType := event.StatementType
-
-		if event.IsPackageDecl {
-			currentStatementType = "package"
-		}
-
 		needsBlankLine := false
 
 		if !event.InRawString && hasWrittenContent && !previousWasOpenBrace && !event.IsClosingBrace && !event.IsCaseLabel && !event.IsContinuation {
 			currentIsTopLevel := event.HasASTInfo && event.IsTopLevel
 			currentIsScoped := event.HasASTInfo && event.IsScoped
 			currentIsSingleLineScope := currentIsScoped && event.IsSingleLineScope
-			sameStatementType := currentStatementType == previousStatementType
-			groupedBindings := sameStatementType && currentStatementType == "binding" && !currentIsTopLevel && !previousWasTopLevel
-			groupedCalls := sameStatementType && currentStatementType == "call"
-			isDefinition := currentStatementType == "function" || currentStatementType == "type"
+			sameStatementType := event.StatementType == previousStatementType
+			groupedBindings := sameStatementType && event.StatementType == "binding" && !currentIsTopLevel && !previousWasTopLevel
+			groupedCalls := sameStatementType && event.StatementType == "call"
+			isDefinition := event.StatementType == "function" || event.StatementType == "type"
 
 			if currentIsTopLevel && previousWasTopLevel && !sameStatementType {
 				needsBlankLine = true
@@ -65,7 +55,7 @@ func (e *Engine) FormatToString(events []LineEvent) string {
 				groupedDefinitions := e.GroupSingleLineScopes && isDefinition && currentIsSingleLineScope && previousWasSingleLineScope && sameStatementType
 
 				needsBlankLine = !groupedDefinitions
-			} else if currentStatementType != "" && previousStatementType != "" && !sameStatementType {
+			} else if event.StatementType != "" && previousStatementType != "" && !sameStatementType {
 				needsBlankLine = true
 			}
 
@@ -77,15 +67,14 @@ func (e *Engine) FormatToString(events []LineEvent) string {
 		}
 
 		if needsBlankLine {
-			resultBuilder.WriteByte('\n')
+			output = append(output, '\n')
 		}
 
 		if hasWrittenContent {
-			resultBuilder.WriteByte('\n')
+			output = append(output, '\n')
 		}
 
-		resultBuilder.WriteString(event.Content)
-
+		output = append(output, event.Content...)
 		hasWrittenContent = true
 		previousWasOpenBrace = event.IsOpeningBrace || event.IsCaseLabel
 
@@ -98,19 +87,13 @@ func (e *Engine) FormatToString(events []LineEvent) string {
 			previousWasTopLevel = event.IsTopLevel
 			previousWasScoped = event.IsScoped
 			previousWasSingleLineScope = event.IsSingleLineScope && event.IsScoped
-		} else if !event.InRawString && currentStatementType != "" {
-			previousStatementType = currentStatementType
+		} else if !event.InRawString && event.StatementType != "" {
+			previousStatementType = event.StatementType
 			previousWasTopLevel = false
 			previousWasScoped = false
 			previousWasSingleLineScope = false
 		}
 	}
 
-	resultBuilder.WriteByte('\n')
-
-	return resultBuilder.String()
-}
-
-func (e *Engine) FormatToBytes(events []LineEvent) []byte {
-	return []byte(e.FormatToString(events))
+	return append(output, '\n')
 }

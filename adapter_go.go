@@ -30,19 +30,19 @@ func (a *GoAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, error) {
 
 	indexGoStatements(tokenFileSet, parsedFile, events)
 
+	events[tokenFileSet.PositionFor(parsedFile.Package, false).Line-1].StatementType = "package"
+
 	for lineIndex := range events {
 		currentLine, nextSource, _ := strings.Cut(remainingSource, "\n")
 		event := &events[lineIndex]
 
 		remainingSource = nextSource
 		event.Content = currentLine
-		event.TrimmedContent = strings.TrimSpace(currentLine)
-		event.IsBlank = event.TrimmedContent == ""
+		event.IsBlank = strings.TrimSpace(currentLine) == ""
 		event.IsClosingBrace = isClosingBrace(currentLine)
 		event.IsOpeningBrace = isOpeningBrace(currentLine)
 		event.IsCaseLabel = isCaseLabel(currentLine)
 		event.IsCommentOnly = isCommentOnly(currentLine)
-		event.IsPackageDecl = isPackageLine(event.TrimmedContent)
 	}
 
 	for _, commentGroup := range parsedFile.Comments {
@@ -56,9 +56,10 @@ func (a *GoAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, error) {
 
 			for commentLine := firstLine; commentLine <= lastLine; commentLine++ {
 				event := &events[commentLine-1]
-				commentEnd := strings.Index(event.TrimmedContent, "*/")
-				commentOnly := strings.HasPrefix(event.TrimmedContent, "/*") &&
-					(commentEnd < 0 || strings.TrimSpace(event.TrimmedContent[commentEnd+2:]) == "")
+				trimmedContent := strings.TrimSpace(event.Content)
+				commentEnd := strings.Index(trimmedContent, "*/")
+				commentOnly := strings.HasPrefix(trimmedContent, "/*") &&
+					(commentEnd < 0 || strings.TrimSpace(trimmedContent[commentEnd+2:]) == "")
 
 				event.InRawString = commentLine != firstLine
 				event.IsCommentOnly = event.IsCommentOnly || commentOnly

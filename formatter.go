@@ -31,7 +31,7 @@ func (f *Formatter) Format(source []byte, filename string) ([]byte, error) {
 		CommentMode:           f.CommentMode,
 		GroupSingleLineScopes: f.Configuration.groupSingleLineFunctions(),
 	}
-	result := formattingEngine.FormatToBytes(events)
+	result := formattingEngine.Format(events)
 
 	if isEcmaScriptExtension(filepath.Ext(filename)) || bytes.Equal(normalizedSource, result) {
 		return result, nil

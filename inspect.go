@@ -46,6 +46,7 @@ func containsMultilineBody(tokenFile *token.File, node ast.Node) bool {
 
 func indexGoStatements(tokenFileSet *token.FileSet, parsedFile *ast.File, events []engine.LineEvent) {
 	tokenFile := tokenFileSet.File(parsedFile.Pos())
+	isStatementStart := make([]bool, len(events))
 
 	for _, declaration := range parsedFile.Decls {
 		startLine := tokenFile.PositionFor(declaration.Pos(), false).Line
@@ -58,7 +59,8 @@ func indexGoStatements(tokenFileSet *token.FileSet, parsedFile *ast.File, events
 			statementType, isScoped = classifyGoGeneralDeclaration(tokenFile, generalDeclaration, isSingleLine)
 		}
 
-		events[startLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsTopLevel: true, IsScoped: isScoped, IsSingleLineScope: isSingleLine, IsStartLine: true}
+		events[startLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsTopLevel: true, IsScoped: isScoped, IsSingleLineScope: isSingleLine}
+		isStatementStart[startLine-1] = true
 
 		if endLine != startLine {
 			events[endLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsTopLevel: true, IsScoped: isScoped}
@@ -68,14 +70,14 @@ func indexGoStatements(tokenFileSet *token.FileSet, parsedFile *ast.File, events
 	ast.Inspect(parsedFile, func(astNode ast.Node) bool {
 		switch typedNode := astNode.(type) {
 		case *ast.BlockStmt:
-			indexGoStatementList(tokenFile, typedNode.List, events)
+			indexGoStatementList(tokenFile, typedNode.List, events, isStatementStart)
 		case *ast.CaseClause:
-			indexGoStatementList(tokenFile, typedNode.Body, events)
+			indexGoStatementList(tokenFile, typedNode.Body, events, isStatementStart)
 		case *ast.CommClause:
-			indexGoStatementList(tokenFile, typedNode.Body, events)
+			indexGoStatementList(tokenFile, typedNode.Body, events, isStatementStart)
 		case *ast.IfStmt:
 			if elseIfStatement, isElseIf := typedNode.Else.(*ast.IfStmt); isElseIf {
-				indexGoStatementList(tokenFile, []ast.Stmt{elseIfStatement}, events)
+				indexGoStatementList(tokenFile, []ast.Stmt{elseIfStatement}, events, isStatementStart)
 			}
 		}
 
@@ -83,7 +85,7 @@ func indexGoStatements(tokenFileSet *token.FileSet, parsedFile *ast.File, events
 	})
 }
 
-func indexGoStatementList(tokenFile *token.File, statements []ast.Stmt, events []engine.LineEvent) {
+func indexGoStatementList(tokenFile *token.File, statements []ast.Stmt, events []engine.LineEvent, isStatementStart []bool) {
 	for _, statement := range statements {
 		startLine := tokenFile.PositionFor(statement.Pos(), false).Line
 		endLine := tokenFile.PositionFor(statement.End(), false).Line
@@ -142,11 +144,12 @@ func indexGoStatementList(tokenFile *token.File, statements []ast.Stmt, events [
 			isScoped = true
 		}
 
-		if !events[startLine-1].IsStartLine {
-			events[startLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsScoped: isScoped, IsSingleLineScope: isSingleLine, IsStartLine: true}
+		if !isStatementStart[startLine-1] {
+			events[startLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsScoped: isScoped, IsSingleLineScope: isSingleLine}
+			isStatementStart[startLine-1] = true
 		}
 
-		if !events[endLine-1].IsStartLine {
+		if !isStatementStart[endLine-1] {
 			events[endLine-1] = engine.LineEvent{HasASTInfo: true, StatementType: statementType, IsScoped: isScoped}
 		}
 	}

@@ -55,7 +55,3 @@ func isCaseLabel(sourceLine string) bool {
 func isCommentOnly(sourceLine string) bool {
 	return strings.HasPrefix(trimLeadingWhitespace(sourceLine), "//")
 }
-
-func isPackageLine(trimmedLine string) bool {
-	return len(trimmedLine) > 8 && strings.HasPrefix(trimmedLine, "package ")
-}

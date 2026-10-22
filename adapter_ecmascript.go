@@ -22,7 +22,7 @@ func (a *EcmaScriptAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, 
 		wasInsideLiteral := lexicalState.quote != 0
 		wasInsideComment := lexicalState.insideBlockComment
 		code := strings.TrimSpace(lexicalState.maskLiteralsAndComments(currentLine))
-		event := engine.NewLineEvent(currentLine)
+		event := engine.LineEvent{Content: currentLine, IsBlank: strings.TrimSpace(currentLine) == ""}
 
 		remainingSource = nextSource
 		event.InRawString = wasInsideLiteral || wasInsideComment
@@ -78,7 +78,6 @@ func (a *EcmaScriptAdapter) Analyze(source []byte) ([]byte, []engine.LineEvent, 
 			event.IsSingleLineScope = isScoped
 			event.IsContinuation = isContinuation
 			event.IsTopLevel = len(delimiters) == 0
-			event.IsStartLine = true
 			statementStart = lineIndex
 
 			if len(delimiters) == 0 {

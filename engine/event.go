@@ -1,15 +1,11 @@
 package engine
 
-import "strings"
-
 type LineEvent struct {
 	Content           string
-	TrimmedContent    string
 	StatementType     string
 	IsTopLevel        bool
 	IsScoped          bool
 	IsSingleLineScope bool
-	IsStartLine       bool
 	HasASTInfo        bool
 	IsClosingBrace    bool
 	IsOpeningBrace    bool
@@ -18,15 +14,4 @@ type LineEvent struct {
 	IsCommentOnly     bool
 	IsBlank           bool
 	InRawString       bool
-	IsPackageDecl     bool
-}
-
-func NewLineEvent(content string) LineEvent {
-	trimmed := strings.TrimSpace(content)
-
-	return LineEvent{
-		Content:        content,
-		TrimmedContent: trimmed,
-		IsBlank:        trimmed == "",
-	}
 }

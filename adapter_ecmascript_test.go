@@ -402,7 +402,7 @@ func TestEcmaScriptAdapter(t *testing.T) {
 			}
 
 			formattingEngine := &engine.Engine{CommentMode: engine.CommentsFollow}
-			result := formattingEngine.FormatToString(events)
+			result := string(formattingEngine.Format(events))
 
 			if result != testCase.expected {
 				t.Errorf("mismatch\ngot:\n%s\nwant:\n%s", result, testCase.expected)
