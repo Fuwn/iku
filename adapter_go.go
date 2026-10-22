@@ -39,7 +39,6 @@ func analyzeGo(source []byte) ([]byte, []engine.LineEvent, error) {
 		event.IsBlank = strings.TrimSpace(currentLine) == ""
 		event.IsClosingBrace = isClosingBrace(currentLine)
 		event.IsOpeningBrace = isOpeningBrace(currentLine)
-		event.IsCaseLabel = isCaseLabel(currentLine)
 		event.IsCommentOnly = isCommentOnly(currentLine)
 	}
 
@@ -153,8 +152,10 @@ func indexGoStatements(tokenFileSet *token.FileSet, parsedFile *ast.File, events
 			indexGoStatementList(tokenFile, typedNode.List, events, isStatementStart)
 		case *ast.CaseClause:
 			indexGoStatementList(tokenFile, typedNode.Body, events, isStatementStart)
+			markGoCaseLabel(tokenFile, typedNode.Case, typedNode.Colon, events)
 		case *ast.CommClause:
 			indexGoStatementList(tokenFile, typedNode.Body, events, isStatementStart)
+			markGoCaseLabel(tokenFile, typedNode.Case, typedNode.Colon, events)
 		case *ast.IfStmt:
 			if elseIfStatement, isElseIf := typedNode.Else.(*ast.IfStmt); isElseIf {
 				indexGoStatementList(tokenFile, []ast.Stmt{elseIfStatement}, events, isStatementStart)
@@ -163,6 +164,12 @@ func indexGoStatements(tokenFileSet *token.FileSet, parsedFile *ast.File, events
 
 		return true
 	})
+}
+
+// A case header can span lines; both its first line and its colon line border the clause body.
+func markGoCaseLabel(tokenFile *token.File, casePosition, colonPosition token.Pos, events []engine.LineEvent) {
+	events[tokenFile.PositionFor(casePosition, false).Line-1].IsCaseLabel = true
+	events[tokenFile.PositionFor(colonPosition, false).Line-1].IsCaseLabel = true
 }
 
 func indexGoStatementList(tokenFile *token.File, statements []ast.Stmt, events []engine.LineEvent, isStatementStart []bool) {

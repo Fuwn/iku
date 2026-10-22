@@ -60,7 +60,7 @@ func analyzeEcmaScript(source []byte) []engine.LineEvent {
 
 		event.IsClosingBrace = isClosingBrace(code) || strings.HasPrefix(code, "]")
 		event.IsOpeningBrace = isOpeningBrace(code) || strings.HasSuffix(code, "[")
-		event.IsCaseLabel = isCaseLabel(code)
+		event.IsCaseLabel = ecmaScriptIsCaseLabel(code)
 
 		continuedBody := strings.HasPrefix(code, "{") && statementStart >= 0 && events[statementStart].IsScoped
 		isContinuationLine := wasInsideLiteral || insideExpression || previousEndedWithContinuation || continuedBody || pendingBody >= 0 ||
@@ -329,4 +329,14 @@ func ecmaScriptHasAssignment(code string) bool {
 	}
 
 	return false
+}
+
+func ecmaScriptIsCaseLabel(code string) bool {
+	if afterCase, isCase := strings.CutPrefix(code, "case"); isCase && afterCase != "" && isWhitespace(afterCase[0]) {
+		return true
+	}
+
+	afterDefault, isDefault := strings.CutPrefix(code, "default")
+
+	return isDefault && strings.HasPrefix(trimLeadingWhitespace(afterDefault), ":")
 }

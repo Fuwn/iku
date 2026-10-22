@@ -37,17 +37,3 @@ func isOpeningBrace(sourceLine string) bool {
 
 	return strings.HasSuffix(content, "{") || strings.HasSuffix(content, "(")
 }
-
-func isCaseLabel(sourceLine string) bool {
-	content := trimLeadingWhitespace(sourceLine)
-
-	if len(content) >= 5 && strings.HasPrefix(content, "case") && isWhitespace(content[4]) {
-		return true
-	}
-
-	if strings.HasPrefix(content, "default") && strings.HasPrefix(trimLeadingWhitespace(content[7:]), ":") {
-		return true
-	}
-
-	return len(content) < len(sourceLine) && strings.HasSuffix(trimTrailingWhitespace(content), ":")
-}

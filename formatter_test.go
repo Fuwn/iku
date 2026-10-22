@@ -377,6 +377,24 @@ func main() {
 `,
 		},
 		{
+			name:     "Go nested labels are separated like other statements",
+			filename: "example.go",
+			source:   goFunctionBody("\tfor {\n\t\tvalue := 1\n\tinner:\n\t\tfor {\n\t\t\tbreak inner\n\t\t}\n\t}\n"),
+			expected: goFunctionBody("\tfor {\n\t\tvalue := 1\n\n\tinner:\n\t\tfor {\n\t\t\tbreak inner\n\t\t}\n\t}\n"),
+		},
+		{
+			name:     "Go comments ending in colons attach to the next statement",
+			filename: "example.go",
+			source:   goFunctionBody("\trun()\n\t// Output:\n\t// done\n\tstop()\n"),
+			expected: goFunctionBody("\trun()\n\n\t// Output:\n\t// done\n\tstop()\n"),
+		},
+		{
+			name:     "Go multiline case headers open their clause body",
+			filename: "example.go",
+			source:   goFunctionBody("\tswitch {\n\tcase first &&\n\t\tsecond:\n\t\t// Explain the branch.\n\t\trun()\n\t}\n"),
+			expected: goFunctionBody("\tswitch {\n\tcase first &&\n\t\tsecond:\n\t\t// Explain the branch.\n\t\trun()\n\t}\n"),
+		},
+		{
 			name:     "Go raw strings and block comments can share a line",
 			filename: "example.go",
 			source:   "package example\nfunc example() {\nmessage := `first\nsecond` /* first\nsecond */\nvar enabled = true\nenabled = false\n}\n",
