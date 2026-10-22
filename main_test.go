@@ -104,3 +104,26 @@ func TestCommandLineContinuesAfterErrors(t *testing.T) {
 		t.Errorf("got %q; want the formatted file", output)
 	}
 }
+
+func TestCommandLineListsAndWrites(t *testing.T) {
+	directory := t.TempDir()
+	filePath := filepath.Join(directory, "example.go")
+
+	writeTestFiles(t, directory, map[string]string{"example.go": "package example\nvar first = 1\nfunc second() {}\n"})
+
+	exitCode, output, errorOutput := runCommandLine(&commandLine{list: true, write: true}, filePath)
+
+	if exitCode != 0 || errorOutput != "" || output != filePath+"\n" {
+		t.Fatalf("exit code %d, output %q, errors %q", exitCode, output, errorOutput)
+	}
+
+	written, err := os.ReadFile(filePath)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if expected := "package example\n\nvar first = 1\n\nfunc second() {}\n"; string(written) != expected {
+		t.Errorf("got %q; want %q", written, expected)
+	}
+}

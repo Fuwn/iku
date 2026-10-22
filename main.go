@@ -172,20 +172,31 @@ func (command *commandLine) formatSource(filename string, source []byte) fileRes
 		return fileResult{err: fmt.Errorf("%s: %v", filename, err)}
 	}
 
-	if (command.list || command.diff || command.write) && bytes.Equal(source, formatted) {
+	if !command.list && !command.write && !command.diff {
+		return fileResult{output: formatted}
+	}
+
+	if bytes.Equal(source, formatted) {
 		return fileResult{}
 	}
 
-	switch {
-	case command.list:
-		return fileResult{output: []byte(filename + "\n")}
-	case command.diff:
-		return fileResult{output: unifiedDiff(filename, source, formatted)}
-	case command.write:
-		return fileResult{err: os.WriteFile(filename, formatted, 0644)}
-	default:
-		return fileResult{output: formatted}
+	var output []byte
+
+	if command.list {
+		output = append(output, filename+"\n"...)
 	}
+
+	if command.write {
+		if err := os.WriteFile(filename, formatted, 0644); err != nil {
+			return fileResult{output: output, err: err}
+		}
+	}
+
+	if command.diff {
+		output = append(output, unifiedDiff(filename, source, formatted)...)
+	}
+
+	return fileResult{output: output}
 }
 
 func (command *commandLine) report(result fileResult) int {
