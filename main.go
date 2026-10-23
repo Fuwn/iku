@@ -151,7 +151,7 @@ func findSourceFiles(directoryPath string) ([]string, error) {
 			return nil
 		}
 
-		if fileExtension := filepath.Ext(currentPath); fileExtension == ".go" || isEcmaScriptExtension(fileExtension) {
+		if fileExtension := filepath.Ext(currentPath); fileExtension == ".go" || fileExtension == ".rs" || isEcmaScriptExtension(fileExtension) {
 			sourceFilePaths = append(sourceFilePaths, currentPath)
 		}
 

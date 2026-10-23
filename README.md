@@ -4,7 +4,7 @@
 
 Let your code breathe!
 
-Iku is a grammar-based formatter that enforces consistent blank-line placement by statement and declaration type. It supports Go, JavaScript, TypeScript, JSX, and TSX.
+Iku is a grammar-based formatter that enforces consistent blank-line placement by statement and declaration type. It supports Go, JavaScript, TypeScript, JSX, TSX, and Rust.
 
 ## Philosophy
 
@@ -14,7 +14,7 @@ Code structure should be visually apparent from its formatting. Iku groups state
 
 1. **Same kind means no blank line**: Consecutive bindings, calls, or assignments stay together.
 2. **Different kinds get one blank line**: Bindings, assignments, calls, type declarations, imports, returns, and other grammatical roles are distinct.
-3. **Bindings share a kind**: Go short declarations and explicit `var`/`const` declarations group together. JavaScript and TypeScript `const`, `let`, and `var` declarations also group together, including declaration modifiers.
+3. **Bindings share a kind**: Go short declarations and explicit `var`/`const` declarations group together. JavaScript and TypeScript `const`, `let`, and `var` declarations also group together, including declaration modifiers, as do Rust `let`, `const`, and `static` bindings.
 4. **Multiline bodies get separation**: Control-flow bodies, functions, and type bodies get blank lines around them, without blank lines at the beginning or end of an enclosing block. Multiline initialisers alone do not count as bodies.
 5. **Outer statements determine grouping**: Consecutive bindings inside a block stay together even when their values contain bodies. At top level, bindings containing multiline bodies get separation. Consecutive calls stay together even when they contain multiline callbacks.
 6. **Comments attach to the following statement by default**: A comment group gets a blank line before it and none between it and the statement, except at the start of an enclosing block. Other attachment modes are configurable.
@@ -25,6 +25,8 @@ Code structure should be visually apparent from its formatting. Iku groups state
 For Go files, Iku applies standard Go formatting (via [go/format](https://pkg.go.dev/go/format)), classifies grammatical roles through the AST, and applies its blank-line rules. When its blank-line changes alter the layout, Iku formats the result again to keep alignment and required build-tag separators intact.
 
 For JavaScript and TypeScript files (`.js`, `.ts`, `.jsx`, `.tsx`), Iku uses a heuristic line-based analyser that distinguishes declarations, assignments, and calls, and tracks delimiters and bodies. Strings, template literals, comments, and regular-expression literals are excluded from structural classification. This is not a complete JavaScript or TypeScript syntax parser.
+
+For Rust files (`.rs`), Iku uses a similar heuristic analyser. Strings, raw strings, character literals, and nested comments are excluded from classification, while lifetimes and labels are kept. Attributes take the role of the item below them, and an attributed definition does not count as a single-line definition. Inner doc comments (`//!`) group with inner attributes rather than attaching to the next item. A block's final expression, including a closure's, is treated as a return. Struct, enum, and union bodies are field lists: their documentation stays packed, and blank lines between fields are removed. Match arms are statements of their own kind: single-line arms group, while an arm with a multiline block body gets blank lines around it. Macro bodies written with braces and `macro_rules!` definitions are preserved verbatim. This is not a complete Rust syntax parser.
 
 ## Installation
 
@@ -47,12 +49,13 @@ echo 'package main ...' | iku
 # Format and print to stdout
 iku file.go
 iku component.tsx
+iku main.rs
 
 # Format in-place
 iku -w file.go
 iku -w src/
 
-# Format entire directory (Go, JS, TS, JSX, TSX)
+# Format entire directory (Go, JS, TS, JSX, TSX, Rust)
 iku -w .
 
 # List files that need formatting

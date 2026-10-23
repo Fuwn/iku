@@ -32,6 +32,36 @@ func BenchmarkFormatEcmaScript(b *testing.B) {
 	}
 }
 
+func BenchmarkFormatRust(b *testing.B) {
+	for _, functionCount := range []int{1, 100} {
+		b.Run(strconv.Itoa(functionCount), func(b *testing.B) {
+			source := []byte(strings.Repeat(`/// Counts requests.
+#[must_use]
+pub fn example<'a>(router: &'a mut Router) -> Result<usize, Error> {
+  let options = Options { ready: true };
+  let mut count = 1;
+  count += 1;
+  router.mount("/", move |_| {
+    Response::success(r#"{"ready": true}"#)
+  });
+  let size = match count {
+    0 => return Err(Error::Empty),
+    _ => count * 2,
+  };
+  Ok(size)
+}
+`, functionCount))
+			formatter := &Formatter{}
+
+			b.SetBytes(int64(len(source)))
+
+			for b.Loop() {
+				_, _ = formatter.Format(source, "example.rs")
+			}
+		})
+	}
+}
+
 func BenchmarkFormatNested(b *testing.B) {
 	source := []byte("package example\nfunc example() {\n" + strings.Repeat("if ready {\n", 20) + "run()\n" + strings.Repeat("}\n", 21))
 	formatter := &Formatter{}
@@ -52,6 +82,8 @@ func BenchmarkFormatVerbatim(b *testing.B) {
 		{"GoBlockComment", "example.go", "package example\n/*\n" + paragraphs + "*/\nfunc example() {}\n"},
 		{"JavaScriptTemplate", "example.js", "const message = `" + paragraphs + "`;\nlet enabled = true;\n"},
 		{"JavaScriptBlockComment", "example.js", "/*\n" + paragraphs + "*/\nfunction example() {}\n"},
+		{"RustRawString", "example.rs", "const MESSAGE: &str = r#\"" + paragraphs + "\"#;\nlet enabled = true;\n"},
+		{"RustBlockComment", "example.rs", "/*\n" + paragraphs + "*/\nfn example() {}\n"},
 	}
 
 	for _, testCase := range cases {

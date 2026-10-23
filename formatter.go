@@ -18,6 +18,8 @@ func (formatter *Formatter) Format(source []byte, filename string) ([]byte, erro
 	switch {
 	case isEcmaScriptExtension(extension):
 		return formatter.Engine.Format(analyzeEcmaScript(source)), nil
+	case extension == ".rs":
+		return formatter.Engine.Format(analyzeRust(source)), nil
 	case extension == ".go" || extension == "":
 		return formatter.formatGo(source)
 	default:
