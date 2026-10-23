@@ -144,7 +144,7 @@ func findSourceFiles(directoryPath string) ([]string, error) {
 		}
 
 		if directoryEntry.IsDir() {
-			if currentPath != directoryPath && isSkippedDirectory(directoryEntry.Name()) {
+			if currentPath != directoryPath && isSkippedDirectory(currentPath, directoryEntry.Name()) {
 				return filepath.SkipDir
 			}
 
@@ -161,9 +161,20 @@ func findSourceFiles(directoryPath string) ([]string, error) {
 	return sourceFilePaths, err
 }
 
-// Hidden directories and installed JavaScript dependencies are not project sources.
-func isSkippedDirectory(name string) bool {
-	return strings.HasPrefix(name, ".") || name == "node_modules"
+// Hidden directories, installed JavaScript dependencies, and Cargo build output are not project
+// sources. Cargo marks its target directory with a cache tag, which keeps other target directories.
+func isSkippedDirectory(directoryPath string, name string) bool {
+	if strings.HasPrefix(name, ".") || name == "node_modules" {
+		return true
+	}
+
+	if name != "target" {
+		return false
+	}
+
+	_, err := os.Stat(filepath.Join(directoryPath, "CACHEDIR.TAG"))
+
+	return err == nil
 }
 
 func (command *commandLine) formatFile(filePath string) fileResult {

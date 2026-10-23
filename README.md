@@ -65,7 +65,7 @@ iku -l .
 iku -d file.go
 ```
 
-Directory walks skip hidden directories and `node_modules`. Explicit paths with other extensions are rejected, and standard input is formatted as Go.
+Directory walks skip hidden directories, `node_modules`, and Cargo `target` directories marked with `CACHEDIR.TAG`. Explicit paths with other extensions are rejected, and standard input is formatted as Go.
 
 ### Flags
 

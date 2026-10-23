@@ -119,3 +119,20 @@ func TestCommandLineSkipsHiddenAndDependencyDirectories(t *testing.T) {
 		t.Fatalf("exit code %d, output %q, errors %q; want output %q", exitCode, output, errorOutput, expected)
 	}
 }
+
+func TestCommandLineSkipsCargoTargetDirectories(t *testing.T) {
+	directory := t.TempDir()
+	unformatted := "use std::fmt;\nfn main() {}\n"
+
+	writeTestFiles(t, directory, map[string]string{
+		"target/CACHEDIR.TAG":             "Signature: 8a477f597d28d172789f06886806bc55\n",
+		"target/debug/build/generated.rs": unformatted,
+		"source/target/example.rs":        unformatted,
+	})
+
+	exitCode, output, errorOutput := runCommandLine(&commandLine{list: true}, directory)
+
+	if expected := filepath.Join(directory, "source", "target", "example.rs") + "\n"; exitCode != 0 || errorOutput != "" || output != expected {
+		t.Fatalf("exit code %d, output %q, errors %q; want output %q", exitCode, output, errorOutput, expected)
+	}
+}
