@@ -1,32 +1,30 @@
-# 🚀 Iku
+# ⛩️ Iku
 
-> Grammar-Aware Code Formatter: Structure through separation
-
-Let your code breathe!
+> Grammar-Aware Blank-Line Formatter
 
 Iku is a grammar-based formatter that enforces consistent blank-line placement by statement and declaration type. It supports Go, JavaScript, TypeScript, JSX, TSX, and Rust.
 
 ## Philosophy
 
-Code structure should be visually apparent from its formatting. Iku groups statements by grammatical type and separates them with blank lines, making the code flow easier to read at a glance.
+Code structure should be visually apparent from its formatting. Iku groups statements by grammatical type and separates the groups with blank lines, so a reader can see where one step ends and the next begins.
 
 ## Rules
 
-1. **Same kind means no blank line**: Consecutive bindings, calls, or assignments stay together.
-2. **Different kinds get one blank line**: Bindings, assignments, calls, type declarations, imports, returns, and other grammatical roles are distinct.
-3. **Bindings share a kind**: Go short declarations and explicit `var`/`const` declarations group together. JavaScript and TypeScript `const`, `let`, and `var` declarations also group together, including declaration modifiers, as do Rust `let`, `const`, and `static` bindings.
-4. **Multiline bodies get separation**: Control-flow bodies, functions, and type bodies get blank lines around them, without blank lines at the beginning or end of an enclosing block. Multiline initialisers alone do not count as bodies.
-5. **Outer statements determine grouping**: Consecutive bindings inside a block stay together even when their values contain bodies. At top level, bindings containing multiline bodies get separation. Consecutive calls stay together even when they contain multiline callbacks.
-6. **Comments attach to the following statement by default**: A comment group gets a blank line before it and none between it and the statement, except at the start of an enclosing block. Other attachment modes are configurable.
-7. **Single-line definitions may cluster**: Consecutive single-line function and scoped type definitions group by default. This can be disabled in configuration.
+1. **Same kind means no blank line.** Consecutive bindings, calls, or assignments stay together.
+2. **Different kinds get one blank line.** Bindings, assignments, calls, type declarations, imports, returns, and other grammatical roles are distinct.
+3. **Bindings share a kind.** Go short declarations and explicit `var`/`const` declarations group together. JavaScript and TypeScript `const`, `let`, and `var` declarations also group together, including declaration modifiers, as do Rust `let`, `const`, and `static` bindings.
+4. **Multiline bodies get blank lines around them.** This covers control-flow bodies, functions, and type bodies. Iku never adds a blank line at the start or end of an enclosing block. A multiline initialiser alone does not count as a body.
+5. **Outer statements determine grouping.** Consecutive bindings inside a block stay together even when their values contain bodies. At top level, bindings containing multiline bodies get blank lines around them. Consecutive calls stay together even when they contain multiline callbacks.
+6. **Comments attach to the following statement by default.** A comment group gets a blank line before it and none between it and the statement, except at the start of an enclosing block. [`comment_mode`](#comment_mode) selects other attachment modes.
+7. **Single-line definitions may cluster.** Consecutive single-line function and scoped type definitions group by default. Set [`group_single_line_functions`](#group_single_line_functions) to `false` to separate them.
 
 ## How It Works
 
 For Go files, Iku applies standard Go formatting (via [go/format](https://pkg.go.dev/go/format)), classifies grammatical roles through the AST, and applies its blank-line rules. When its blank-line changes alter the layout, Iku formats the result again to keep alignment and required build-tag separators intact.
 
-For JavaScript and TypeScript files (`.js`, `.ts`, `.jsx`, `.tsx`), Iku uses a heuristic line-based analyser that distinguishes declarations, assignments, and calls, and tracks delimiters and bodies. Strings, template literals, comments, and regular-expression literals are excluded from structural classification. This is not a complete JavaScript or TypeScript syntax parser.
+For JavaScript and TypeScript files (`.js`, `.ts`, `.jsx`, `.tsx`), Iku uses a heuristic line-based analyser that distinguishes declarations, assignments, and calls, and tracks delimiters and bodies. The analyser ignores strings, template literals, comments, and regular-expression literals when classifying structure. It is not a complete JavaScript or TypeScript syntax parser.
 
-For Rust files (`.rs`), Iku uses a similar heuristic analyser. Strings, raw strings, character literals, and nested comments are excluded from classification, while lifetimes and labels are kept. Attributes take the role of the item below them, and an attributed definition does not count as a single-line definition. Inner doc comments (`//!`) group with inner attributes rather than attaching to the next item. A block's final expression, including a closure's, is treated as a return. Struct, enum, and union bodies are field lists: their documentation stays packed, and blank lines between fields are removed. Match arms are statements of their own kind: single-line arms group, while an arm with a multiline block body gets blank lines around it. Macro bodies written with braces and `macro_rules!` definitions are preserved verbatim. This is not a complete Rust syntax parser.
+For Rust files (`.rs`), Iku uses a similar heuristic analyser. It ignores strings, raw strings, character literals, and nested comments when classifying, but keeps lifetimes and labels. Attributes take the role of the item below them, and an attributed definition does not count as a single-line definition. Inner doc comments (`//!`) group with inner attributes rather than attaching to the next item. Iku classifies a block's final expression, including a closure's, as a return. Struct, enum, and union bodies are field lists, so their documentation stays packed and Iku removes blank lines between fields. Match arms are a kind of their own. Single-line arms group, and an arm with a multiline block body gets blank lines around it. Iku leaves brace-delimited macro bodies and `macro_rules!` definitions untouched. It is not a complete Rust syntax parser.
 
 ## Installation
 
@@ -65,7 +63,7 @@ iku -l .
 iku -d file.go
 ```
 
-Directory walks skip hidden directories, `node_modules`, and Cargo `target` directories marked with `CACHEDIR.TAG`. Explicit paths with other extensions are rejected, and standard input is formatted as Go.
+Directory walks skip hidden directories, `node_modules`, and Cargo `target` directories marked with `CACHEDIR.TAG`. Iku rejects explicit paths with other extensions and formats standard input as Go.
 
 ### Flags
 
@@ -87,21 +85,21 @@ Iku looks for `.iku.json` or `iku.json` in the current working directory.
 }
 ```
 
-All fields are optional. Omitted fields use their defaults; unknown fields and malformed JSON are reported as errors.
+All fields are optional, and omitted fields use their defaults. Iku reports unknown fields and malformed JSON as errors.
 
 ### `comment_mode`
 
-Controls how comments interact with blank-line insertion. Default: `"follow"`.
+Controls how comments interact with blank-line insertion. The default is `"follow"`.
 
 | Mode | Behaviour |
 |------|-----------|
-| `follow` | Comments attach to the **next** statement. The blank line goes **before** the comment. |
-| `precede` | Comments attach to the **previous** statement. The blank line goes **after** the comment. |
-| `standalone` | Comments are independent. Blank lines are placed strictly by statement rules. |
+| `follow` | Comments attach to the next statement. The blank line goes before the comment. |
+| `precede` | Comments attach to the previous statement. The blank line goes after the comment. |
+| `standalone` | Comments attach to neither neighbour. Statement rules alone decide blank lines. |
 
 ### `group_single_line_functions`
 
-When `true`, consecutive single-line function and scoped type definitions of the same kind are kept together without blank lines. Default: `true`. Set it to `false` to separate those definitions. Go output retains standard column alignment after regrouping.
+When `true`, consecutive single-line function and scoped type definitions of the same kind stay together without blank lines. The default is `true`. Set it to `false` to separate those definitions. Go output keeps standard column alignment after regrouping.
 
 ```go
 // group_single_line_functions = true (default)
@@ -167,9 +165,9 @@ func main() {
 
 Notice how:
 - `x := 1`, `y := 2`, and `var config` stay together because all three declare bindings
-- Reassignments such as `x = 2` have a different role from binding declarations
+- A reassignment such as `x = 2` would not join them, because it is an assignment, not a binding
 - `defer` statements stay grouped together
-- Each `if` statement gets a blank line before it (scoped statement)
+- Each `if` statement has a body, so it gets blank lines around it
 - `go worker()` is separated from the `if` above
 - `return` is separated from the `go` statement
 
@@ -216,7 +214,7 @@ func run() {
 
 Notice how:
 - `type Config struct` is scoped (has braces), so it gets a blank line
-- `type ID int` and `type Name string` are unscoped type aliases, so they group together
+- `type ID int` and `type Name string` are unscoped type definitions, so they group together
 - `var defaultConfig` and `var x` are unscoped, so they group together
 - `func main()` and `func run()` are scoped, so each gets a blank line
 
@@ -273,8 +271,8 @@ Go AST node types inform classification, but do not determine grouping alone:
 | Goroutine Launch | `go worker()` |
 | Channel Send | `channel <- value` |
 
-In particular, `*ast.AssignStmt` represents both short declarations and
-reassignments; Iku uses its token to distinguish those roles. Composite-literal
+`*ast.AssignStmt` represents both short declarations and reassignments, and
+Iku uses its token to tell those roles apart. Composite-literal
 braces do not make a binding scoped, but a multiline function or type body does.
 
 ## License
