@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test and Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v7
+
+      - name: Set Up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Run Tests
+        run: go test ./...
+
+      - name: Build Binary
+        run: go build -o iku .
+
+      - name: Check Binary Version
+        run: ./iku --version
+
+      - name: Check Formatting
+        run: |
+          formatting_diff="$(./iku -d .)"
+
+          if [ -n "$formatting_diff" ]; then
+            printf '%s\n' "$formatting_diff"
+            exit 1
+          fi
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v7
+
+      - name: Set Up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15
